@@ -25,7 +25,7 @@
 
 ```powershell
 cd C:\Users\HUAWEI\Downloads\auto_choice
-python -m http.server 8899 --bind 127.0.0.1 --directory agv_app\public
+python -m http.server 8899 --bind 127.0.0.1 --directory agv_app\docs
 ```
 
 浏览器打开 <http://127.0.0.1:8899/>
@@ -51,16 +51,16 @@ cd C:\Users\HUAWEI\Downloads\auto_choice
 # 1) 建一个仓库（网页上点几下即可），然后：
 cd agv_app
 git init
-git add public
+git add docs
 git commit -m "agv field app v1"
 git branch -M main
 git remote add origin https://github.com/<你>/agv-field.git
 git push -u origin main
 ```
-仓库 Settings → Pages → Source 选 `main` / `/public` → 得到 `https://<你>.github.io/agv-field/`
+仓库 Settings → Pages → Source 选 `main` / `/docs` → 得到 `https://<你>.github.io/agv-field/`
 
 ### 用 Cloudflare Pages
-登录 → Workers & Pages → Create → Pages → 连接 Git 仓库（或直接上传 `public` 文件夹）→ 构建输出目录填 `public`。
+登录 → Workers & Pages → Create → Pages → 连接 Git 仓库（或直接上传 `docs` 文件夹）→ 构建输出目录填 `docs`。
 
 > ⚠️ **托管站上只有程序，没有任何业务数据。** 客户资料、照片、方案都在员工手机里。
 
@@ -154,7 +154,7 @@ App 里已经内置防丢提醒：首页黄条按天数变色（3 天提醒、7 
 
 ## 七、字段与原表的对应关系
 
-字段定义全部来自 `public/assets/schema.js`（59 个字段，覆盖原表 **75 个填写位置**）：
+字段定义全部来自 `docs/assets/schema.js`（59 个字段，覆盖原表 **75 个填写位置**）：
 
 | 步 | 模块 | 对应原表 | 写入单元格 |
 |---|---|---|---|
@@ -192,7 +192,7 @@ App 里已经内置防丢提醒：首页黄条按天数变色（3 天提醒、7 
 ```
 agv_app/
 ├─ 方案设计.md                 设计稿（决策记录 + 技术方案）
-├─ public/                     ← 部署这个目录
+├─ docs/                     ← 部署这个目录
 │   ├─ index.html              我的方案（首页）
 │   ├─ project.html            工作台（模块卡片）
 │   ├─ module.html             模块编辑页
@@ -222,7 +222,7 @@ agv_app/
 
 ```powershell
 # 先起静态服务器（另开一个窗口）
-python -m http.server 8899 --bind 127.0.0.1 --directory agv_app\public
+python -m http.server 8899 --bind 127.0.0.1 --directory agv_app\docs
 
 # 1) xlsx 生成器（Node，需 openpyxl 核对）
 $env:AGV_PY = "python.exe的完整路径"
@@ -255,7 +255,7 @@ node agv_app\tests\shots.mjs 8899
 
 ## 十一、改字段怎么办
 
-只改 `public/assets/schema.js`，三处要同步：
+只改 `docs/assets/schema.js`，三处要同步：
 1. `schema.js` 里加字段定义
 2. `xlsxgen.js` 的 `FIXED` / `REPEAT` 映射里加对应单元格（否则不会写进表）
 3. 跑 `node agv_app\tests\test_xlsxgen.mjs` 确认落位正确

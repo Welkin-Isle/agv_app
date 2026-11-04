@@ -7,7 +7,7 @@
  * 这是唯一能验证"PWA 在真实浏览器里能跑"的手段。
  *
  * 前置：先起静态服务器
- *   python -m http.server 8899 --bind 127.0.0.1 --directory agv_app/public
+ *   python -m http.server 8899 --bind 127.0.0.1 --directory agv_app/docs
  * 用法：node agv_app/tests/browser.test.mjs [端口]
  * ========================================================================== */
 import { spawn } from 'node:child_process';

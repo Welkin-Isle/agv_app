@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PUB = path.resolve(HERE, '..', 'public');
+const PUB = path.resolve(HERE, '..', 'docs');
 const ROOT = path.resolve(PUB, '..', '..');
 const TEMPLATE = path.join(PUB, 'template', 'template.xlsx');
 const OUT = path.join(HERE, '_gen.xlsx');
