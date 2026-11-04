@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<meta name="robots" content="noindex, nofollow">
+<title>环境自检 · AGV 现场记录</title>
+<link rel="icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="assets/app.css">
+<style>
+  .item{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px dashed var(--line-2);font-size:13px}
+  .item:last-child{border-bottom:0}
+  .ic{flex:none;width:20px;text-align:center;font-weight:800}
+  .ic.ok{color:var(--ok)} .ic.bad{color:var(--bad)} .ic.wait{color:var(--ink3)}
+  .nm2{flex:1}
+  .dt{font-size:11px;color:var(--ink3);margin-top:2px;word-break:break-all}
+</style>
+</head>
+<body>
+
+<header class="appbar">
+  <button class="back" id="btn-back">‹</button>
+  <div class="ttl">
+    <h1>环境自检</h1>
+    <div class="sub" id="sub">出发去现场前，在要用的这台手机上跑一次</div>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+  <div class="notice info">这一页会检查这台手机/浏览器是否支持本 App 的全部功能，并实测一次"生成调研表"。</div>
+  <div class="card" id="list"></div>
+  <div class="card" id="verdict"></div>
+</main>
+
+<footer class="actions">
+  <div class="actions-in">
+    <button class="btn primary flex" id="btn-again">重新检查</button>
+  </div>
+</footer>
+
+<script src="assets/util.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/zip.js"></script>
+<script src="assets/schema.js"></script>
+<script src="assets/xlsxgen.js"></script>
+<script src="assets/controls.js"></script>
+<script src="assets/media.js"></script>
+<script src="assets/export.js"></script>
+<script>
+(function () {
+  var U = window.AGV_UTIL;
+  var listEl = document.getElementById('list');
+  var verdictEl = document.getElementById('verdict');
+  var rows = [];
+
+  function add(name, detail) {
+    var d = document.createElement('div');
+    d.className = 'item';
+    d.innerHTML = '<div class="ic wait">…</div><div class="nm2">' + name +
+      '<div class="dt">检查中…</div></div>';
+    listEl.appendChild(d);
+    var rec = { name: name, el: d, set: function (ok, dt) {
+      d.querySelector('.ic').className = 'ic ' + (ok ? 'ok' : 'bad');
+      d.querySelector('.ic').textContent = ok ? '✓' : '✗';
+      d.querySelector('.dt').textContent = dt || (ok ? '支持' : '不支持');
+      rec.ok = ok;
+    } };
+    rows.push(rec);
+    return rec;
+  }
+
+  function run() {
+    listEl.innerHTML = ''; verdictEl.innerHTML = ''; rows = [];
+
+    var rIdb = add('本地数据库（IndexedDB）', '用来存方案和照片');
+    var rCrypto = add('加密能力（WebCrypto）', '导出加密包用');
+    var rSw = add('离线缓存（Service Worker）', '断网也能打开');
+    var rRec = add('录视频（MediaRecorder）', '现场拍视频用');
+    var rDs = add('解压能力（DecompressionStream）', '生成调研表必需');
+    var rTpl = add('调研表模板（4.9MB）', '生成表格的母版');
+    var rXlsx = add('生成调研表 xlsx', '实测一次真实生成');
+    var rStore = add('可用存储空间', '照片视频要占空间');
+
+    rCrypto.set(!!(window.crypto && crypto.subtle), crypto.subtle ? '支持 AES-GCM' : '缺少 crypto.subtle');
+    rSw.set('serviceWorker' in navigator, 'serviceWorker' in navigator ? '支持离线' : '不支持（仍可在线使用）');
+    rRec.set(window.AGV_MEDIA && AGV_MEDIA.supportsRecording(),
+      window.AGV_MEDIA && AGV_MEDIA.supportsRecording() ? '可以录制' : '不支持（仍可从相册选视频）');
+    rDs.set(typeof DecompressionStream === 'function',
+      typeof DecompressionStream === 'function' ? '支持' : '不支持 → 无法生成表格');
+
+    if (typeof indexedDB === 'undefined') {
+      rIdb.set(false, '不支持 → 无法保存数据');
+    } else {
+      var p = AGV_DB.newProject({ customer: '__SELFTEST__' });
+      AGV_DB.putProject(p)
+        .then(function () { return AGV_DB.getProject(p.id); })
+        .then(function (got) {
+          var ok = !!(got && got.customer === '__SELFTEST__');
+          rIdb.set(ok, ok ? '写入 / 读取 / 删除 正常' : '读回数据不一致');
+          return AGV_DB.deleteProject(p.id);
+        })
+        .then(function () { return AGV_DB.getProject(p.id); })
+        .then(function (gone) { if (gone) rIdb.set(false, '删除后仍能读到 → 异常'); })
+        .catch(function (e) { rIdb.set(false, e.message); });
+    }
+
+    AGV_DB.usage().then(function (u) {
+      if (u.quota) {
+        var free = u.quota - u.used;
+        rStore.set(free > 500 * 1048576,
+          '已用 ' + U.fileSize(u.used) + ' / 可用 ' + U.fileSize(free) + (free < 500 * 1048576 ? '（偏小）' : ''));
+      } else {
+        rStore.set(true, '浏览器未报告容量（一般无碍）');
+      }
+    });
+
+    (async function () {
+      try {
+        var t0 = Date.now();
+        var tpl = await AGV_EXPORT.loadTemplate();
+        rTpl.set(true, (tpl.byteLength / 1048576).toFixed(2) + ' MB，用时 ' + (Date.now() - t0) + ' ms');
+
+        var t1 = Date.now();
+        var blob = await AGV_XLSX.generate(tpl, { customer: 'SELFTEST' },
+          { basic: { customer_name: '自检测试' }, extra: { aisle_width_mm: { m: 'single', v: 2000 } } },
+          AGV_SCHEMA);
+        var ms = Date.now() - t1;
+        var ab = await blob.arrayBuffer();
+        var z = AGV_ZIP.readZip(ab);
+        var e = z.find('xl/worksheets/sheet1.xml');
+        var xml = new TextDecoder().decode(await z.inflate(e));
+        var ok = blob.size > 4000000 && z.entries.length === 37 && xml.indexOf('自检测试') >= 0;
+        rXlsx.set(ok, (blob.size / 1048576).toFixed(2) + ' MB · ' + ms + ' ms · ' + z.entries.length + ' 个部件' +
+          (ok ? '' : '（内容校验失败）'));
+      } catch (err) {
+        rTpl.set(false, err.message);
+        rXlsx.set(false, err.message);
+      }
+      verdict();
+    })();
+  }
+
+  function verdict() {
+    var failed = rows.filter(function (r) { return r.ok === false; });
+    var d = document.createElement('div');
+    if (!failed.length) {
+      d.className = 'notice ok';
+      d.innerHTML = '<b>✓ 这台设备可以正常使用</b><br>所有关键能力都支持，可以带到现场。' +
+        '<br><br><b>出发前记得做两件事：</b><br>1. 用 Safari / Chrome 打开本页，点「添加到主屏幕」<br>' +
+        '2. 打开一次首页，等它缓存完（约 5MB），之后断网也能用';
+    } else {
+      d.className = 'notice bad';
+      d.innerHTML = '<b>✗ 有 ' + failed.length + ' 项不支持</b><br>' +
+        failed.map(function (f) { return '· ' + f.name; }).join('<br>') +
+        '<br><br>建议换用 Chrome（安卓）或 Safari（iOS）最新版；' +
+        (failed.some(function (f) { return f.name.indexOf('解压') >= 0; })
+          ? '<br><b>注意：缺少解压能力会导致无法生成调研表，这台设备不适合使用。</b>' : '');
+    }
+    verdictEl.innerHTML = '';
+    verdictEl.appendChild(d);
+  }
+
+  document.getElementById('btn-again').onclick = run;
+  document.getElementById('btn-back').onclick = function () {
+    location.href = document.referrer ? 'javascript:history.back()' : 'index.html';
+  };
+  run();
+})();
+</script>
+</body>
+</html>

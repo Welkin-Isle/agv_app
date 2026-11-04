@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="AGV记录">
+<meta name="robots" content="noindex, nofollow">
+<title>AGV 现场记录</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="tb-row">
+    <div class="brand">
+      <span class="logo">AGV</span>
+      <div style="min-width:0">
+        <h1>现场记录</h1>
+        <div class="sub" id="brand-sub">数据仅存本机 · 未上传任何服务器</div>
+      </div>
+    </div>
+    <div class="save-state" id="storage-state"></div>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+  <div class="empty">正在加载…</div>
+</main>
+
+<footer class="actions" id="actions">
+  <div class="actions-in">
+    <button class="btn primary flex" id="btn-new">＋ 新建方案</button>
+    <button class="btn ghost" id="btn-more">⋯</button>
+  </div>
+</footer>
+
+<!-- 底部抽屉 -->
+<div id="sheet" class="hidden" style="position:fixed;inset:0;z-index:70;background:rgba(15,23,42,.45)" >
+  <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;padding:18px 18px 26px;max-width:560px;margin:0 auto">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px">更多操作</div>
+    <div id="sheet-body"></div>
+    <button class="btn ghost mt16" id="sheet-close" style="width:100%">关闭</button>
+  </div>
+</div>
+
+<script src="assets/util.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/zip.js"></script>
+<script src="assets/schema.js"></script>
+<script src="assets/xlsxgen.js"></script>
+<script src="assets/export.js"></script>
+<script src="assets/home.js"></script>
+</body>
+</html>

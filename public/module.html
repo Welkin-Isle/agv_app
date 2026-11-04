@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<meta name="robots" content="noindex, nofollow">
+<title>填写模块</title>
+<link rel="icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header class="appbar">
+  <button class="back" id="btn-back" title="返回">‹</button>
+  <div class="ttl">
+    <h1 id="ttl">加载中…</h1>
+    <div class="sub" id="sub"></div>
+  </div>
+  <div class="acts">
+    <span class="save-state ok" id="save-state"></span>
+  </div>
+</header>
+
+<main class="mod-body" id="main">
+  <div class="empty">正在加载…</div>
+</main>
+
+<footer class="footbar">
+  <div class="footbar-in">
+    <button class="btn primary flex" id="btn-done">保存并返回</button>
+  </div>
+</footer>
+
+<div id="recMask" class="rec-mask hidden">
+  <div class="rec-dot"></div>
+  <div class="rec-time" id="recTime">00:00</div>
+  <div class="rec-tip">正在录制视频（720p）<br>单段建议不超过 2 分钟</div>
+  <div class="rec-btns">
+    <button class="btn" id="btn-rec-cancel">取消</button>
+    <button class="btn primary" id="btn-rec-stop">停止并保存</button>
+  </div>
+</div>
+
+<script src="assets/util.js"></script>
+<script src="assets/db.js"></script>
+<script src="assets/schema.js"></script>
+<script src="assets/controls.js"></script>
+<script src="assets/media.js"></script>
+<script src="assets/module.js"></script>
+</body>
+</html>
