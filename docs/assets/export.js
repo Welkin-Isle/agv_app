@@ -20,7 +20,7 @@
   var _tplBuf = null;
 
   /**
-   * 加载调研表模板（4.81 MB）。首次需要下载，之后走 Service Worker / 内存缓存。
+   * 加载调研表模板（约 43 KB）。首次需要下载，之后走 Service Worker / 内存缓存。
    * @param {(received:number, total:number)=>void} [onProgress] 下载进度回调
    */
   async function loadTemplate(onProgress) {

@@ -77,7 +77,7 @@ git push -u origin main
 
 **出发前必做两件事**：
 1. 装到主屏幕
-2. 打开一次首页，等 10 秒把 4.9MB 模板缓存下来；再打开「环境自检」（⋯ → 环境自检）确认全绿
+2. 打开一次首页（约 2 秒），模板约 43KB 会自动缓存；再打开「环境自检」确认全绿
 
 ---
 
@@ -178,7 +178,7 @@ App 里已经内置防丢提醒：首页黄条按天数变色（3 天提醒、7 
 
 调研表 xlsx 本质是 ZIP。生成时：
 
-1. 拆开 4.9MB 模板（37 个部件）
+1. 拆开模板（约 43KB，ZIP 内部十几个部件）
 2. **只改 `xl/worksheets/sheet1.xml`** 里目标单元格（文本用 `inlineStr`，数值用 `<v>`）
 3. 其余 36 个部件（图片、样式、41 个合并单元格定义）**原始压缩字节原样拷贝**
 4. 重新拼 ZIP
@@ -199,7 +199,7 @@ agv_app/
 │   ├─ selftest.html           环境自检（出发前在手机上跑）
 │   ├─ manifest.webmanifest    PWA 清单
 │   ├─ sw.js                   Service Worker（离线缓存）
-│   ├─ template/template.xlsx  ★ 调研表母版（4.9MB）
+│   ├─ template/template.xlsx  ★ 调研表母版（约 43KB，已剔除示例图）
 │   └─ assets/
 │       ├─ schema.js           ★ 字段定义（唯一真源，改字段只改这里）
 │       ├─ controls.js         字段控件（数值四模式/下拉/多选）

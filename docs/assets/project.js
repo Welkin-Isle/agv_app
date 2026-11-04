@@ -199,7 +199,7 @@
     var firstTime = !(EX.isTemplateLoaded && EX.isTemplateLoaded());
     btn.disabled = true;
     btn.textContent = firstTime ? '下载模板中…' : '打包中…';
-    if (firstTime) toast('首次导出需下载调研表模板 4.81MB，之后可离线使用');
+    if (firstTime) toast('首次导出需先下载调研表模板，之后可离线使用');
     try {
       var res = await EX.build({
         project: p, answers: p.answers || {}, media: state.media,

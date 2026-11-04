@@ -111,7 +111,7 @@ const blob = await XLSX.generate(ab, { customer: '삼양식품', name: '원주�
 const ms = Date.now() - t0;
 const outBuf = Buffer.from(await blob.arrayBuffer());
 fs.writeFileSync(OUT, outBuf);
-check('生成成功', outBuf.length > 1000000, (outBuf.length / 1048576).toFixed(2) + ' MB');
+check('生成成功', outBuf.length > 20000, (outBuf.length / 1024).toFixed(0) + ' KB');
 check('耗时 < 3 秒', ms < 3000, ms + ' ms');
 check('文件名符合规范', /^1\.1 AGV项目需求调研表_.+_\d{8}\.xlsx$/.test(XLSX.fileName({ customer: '삼양식품' })),
   XLSX.fileName({ customer: '삼양식품' }));
@@ -124,8 +124,13 @@ fs.writeFileSync(pyScript, `
 import openpyxl, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 wb = openpyxl.load_workbook(r"${OUT.replace(/\\/g, '\\\\')}")
+tplwb = openpyxl.load_workbook(r"${TEMPLATE.replace(/\\/g, '\\\\')}")
+tplws = tplwb["表1-项目基本情况"]
 ws = wb["表1-项目基本情况"]
 res = {
+  "tpl_merges": len(tplws.merged_cells.ranges),
+  "tpl_imgs_main": len(getattr(tplws, "_images", [])),
+  "tpl_imgs_site": len(getattr(tplwb["现场勘查图"], "_images", [])),
   "sheets": wb.sheetnames,
   "dims": [ws.max_row, ws.max_column],
   "merges": len(ws.merged_cells.ranges),
@@ -183,9 +188,9 @@ try {
 const R = JSON.parse(pyOut.trim().split('\n').filter(l => l.startsWith('{')).pop());
 
 check('工作表 3 个', R.sheets.length === 3, R.sheets.join(','));
-check('合并单元格 41 个保留', R.merges === 41, '实际 ' + R.merges);
-check('主表图片 3 张保留', R.imgs_main === 3, '实际 ' + R.imgs_main);
-check('勘查图图片 14 张保留', R.imgs_site === 14, '实际 ' + R.imgs_site);
+check('合并单元格与模板一致', R.merges === R.tpl_merges, R.merges + ' / 模板 ' + R.tpl_merges);
+check('主表图片与模板一致', R.imgs_main === R.tpl_imgs_main, R.imgs_main + ' / 模板 ' + R.tpl_imgs_main);
+check('勘查图图片与模板一致', R.imgs_site === R.tpl_imgs_site, R.imgs_site + ' / 模板 ' + R.tpl_imgs_site);
 
 const C = R.cells;
 const eq = (k, expect) => {

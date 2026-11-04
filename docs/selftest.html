@@ -28,7 +28,7 @@
 </header>
 
 <main class="wrap" id="main">
-  <div class="notice info">这一页会检查这台手机/浏览器是否支持本 App 的全部功能，并实测一次"生成调研表"。<br><b>首次运行会下载 4.81 MB 调研表模板</b>，慢网络下可能需要几十秒，请耐心等"模板"那一项变绿。</div>
+  <div class="notice info">这一页会检查这台手机/浏览器是否支持本 App 的全部功能，并实测一次"生成调研表"。<br>首次运行会下载调研表模板，请等"模板"那一项变绿（通常 1 秒内，慢网络会显示下载进度）。</div>
   <div class="card" id="list"></div>
   <div class="card" id="verdict"></div>
 </main>
@@ -78,7 +78,7 @@
     var rSw = add('离线缓存（Service Worker）', '断网也能打开');
     var rRec = add('录视频（MediaRecorder）', '现场拍视频用');
     var rDs = add('解压能力（DecompressionStream）', '生成调研表必需');
-    var rTpl = add('调研表模板（4.81MB）', '生成表格的母版；首次需下载，慢网络可能要几十秒');
+    var rTpl = add('调研表模板', '生成表格的母版；首次需下载，之后离线可用');
     var rXlsx = add('生成调研表 xlsx', '实测一次真实生成');
     var rStore = add('可用存储空间', '照片视频要占空间');
 
@@ -141,9 +141,13 @@
         var z = AGV_ZIP.readZip(ab);
         var e = z.find('xl/worksheets/sheet1.xml');
         var xml = new TextDecoder().decode(await z.inflate(e));
-        var ok = blob.size > 4000000 && z.entries.length === 37 && xml.indexOf('自检测试') >= 0;
-        rXlsx.set(ok, (blob.size / 1048576).toFixed(2) + ' MB · ' + ms + ' ms · ' + z.entries.length + ' 个部件' +
-          (ok ? '' : '（内容校验失败）'));
+        // 与"模板自身"比对，而不是写死尺寸/部件数——以后换模板不用改这里
+        var tz = AGV_ZIP.readZip(tpl);
+        var partsOk = z.entries.length === tz.entries.length;
+        var textOk = xml.indexOf('自检测试') >= 0;
+        var ok = partsOk && textOk && blob.size > 10000;
+        rXlsx.set(ok, (blob.size / 1024).toFixed(0) + ' KB · ' + ms + ' ms · ' + z.entries.length + ' 个部件' +
+          (ok ? '' : '（' + (partsOk ? '' : '部件数不符 ') + (textOk ? '' : '写入内容未找到') + '）'));
       } catch (err) {
         rTpl.set(false, err.message);
         rXlsx.set(false, err.message);

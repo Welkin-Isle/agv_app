@@ -173,10 +173,10 @@ check('加密能力（WebCrypto）', okItem('加密能力'), byName('加密能�
 check('离线缓存（Service Worker）', okItem('离线缓存'), byName('离线缓存').dt);
 check('录视频（MediaRecorder）', okItem('录视频'), byName('录视频').dt);
 check('解压能力（DecompressionStream）', okItem('解压能力'), byName('解压能力').dt);
-check('加载 4.9MB 调研表模板', okItem('调研表模板') && /4\.\d+ MB/.test(byName('调研表模板').dt),
+check('加载调研表模板', okItem('调研表模板') && /[\d.]+\s*(KB|MB)/.test(byName('调研表模板').dt),
   byName('调研表模板').dt);
 check('浏览器内生成 xlsx 且校验通过',
-  okItem('生成调研表') && /4\.\d+ MB/.test(byName('生成调研表').dt) && /37 个部件/.test(byName('生成调研表').dt),
+  okItem('生成调研表') && /[\d.]+\s*(KB|MB)/.test(byName('生成调研表').dt) && /\d+ 个部件/.test(byName('生成调研表').dt),
   byName('生成调研表').dt);
 check('可用存储空间', okItem('可用存储'), byName('可用存储').dt);
 check('自检结论为"可以正常使用"', verdict.indexOf('可以正常使用') >= 0,
@@ -379,7 +379,7 @@ check('zip 含视频（无备注时不加下划线）',
   expInfo.names.filter(n => n.startsWith('现场视频')).join(''));
 check('zip 含 answers.json', expInfo.names.indexOf('answers.json') >= 0);
 check('zip 含 说明.txt', expInfo.names.indexOf('说明.txt') >= 0);
-check('内层 xlsx 结构完整（37 个部件）', expInfo.inner === 37, String(expInfo.inner));
+check('内层 xlsx 结构完整（部件数 > 20）', expInfo.inner > 20, String(expInfo.inner) + ' 个部件');
 check('内层 xlsx 含填写内容', expInfo.innerHasText === true);
 check('answers.json 含项目数据', expInfo.ansOk === true);
 check('加密后解密字节一致', expInfo.encSameBlob === true);
