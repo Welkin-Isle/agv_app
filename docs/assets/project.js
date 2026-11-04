@@ -196,7 +196,10 @@
     var split = (big || hasVideo) ? confirm('是否分包导出？（推荐：iOS 上更稳）\n确定=分包　取消=打成一个大包') : false;
 
     var btn = $('btn-export');
-    btn.disabled = true; btn.textContent = '打包中…';
+    var firstTime = !(EX.isTemplateLoaded && EX.isTemplateLoaded());
+    btn.disabled = true;
+    btn.textContent = firstTime ? '下载模板中…' : '打包中…';
+    if (firstTime) toast('首次导出需下载调研表模板 4.81MB，之后可离线使用');
     try {
       var res = await EX.build({
         project: p, answers: p.answers || {}, media: state.media,

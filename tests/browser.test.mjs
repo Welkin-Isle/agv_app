@@ -16,7 +16,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SITE = `http://127.0.0.1:${process.argv[2] || 8899}`;
+// 支持两种用法：
+//   node browser.test.mjs 8899                                    → 测本地
+//   node browser.test.mjs https://user.github.io/repo             → 测线上
+const ARG = process.argv[2] || '8899';
+const SITE = /^https?:\/\//.test(ARG) ? ARG.replace(/\/$/, '') : `http://127.0.0.1:${ARG}`;
 const DBG_PORT = 9333;
 const EDGE = [
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',

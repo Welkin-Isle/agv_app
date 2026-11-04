@@ -28,7 +28,7 @@
 </header>
 
 <main class="wrap" id="main">
-  <div class="notice info">这一页会检查这台手机/浏览器是否支持本 App 的全部功能，并实测一次"生成调研表"。</div>
+  <div class="notice info">这一页会检查这台手机/浏览器是否支持本 App 的全部功能，并实测一次"生成调研表"。<br><b>首次运行会下载 4.81 MB 调研表模板</b>，慢网络下可能需要几十秒，请耐心等"模板"那一项变绿。</div>
   <div class="card" id="list"></div>
   <div class="card" id="verdict"></div>
 </main>
@@ -78,7 +78,7 @@
     var rSw = add('离线缓存（Service Worker）', '断网也能打开');
     var rRec = add('录视频（MediaRecorder）', '现场拍视频用');
     var rDs = add('解压能力（DecompressionStream）', '生成调研表必需');
-    var rTpl = add('调研表模板（4.9MB）', '生成表格的母版');
+    var rTpl = add('调研表模板（4.81MB）', '生成表格的母版；首次需下载，慢网络可能要几十秒');
     var rXlsx = add('生成调研表 xlsx', '实测一次真实生成');
     var rStore = add('可用存储空间', '照片视频要占空间');
 
@@ -118,8 +118,19 @@
     (async function () {
       try {
         var t0 = Date.now();
-        var tpl = await AGV_EXPORT.loadTemplate();
-        rTpl.set(true, (tpl.byteLength / 1048576).toFixed(2) + ' MB，用时 ' + (Date.now() - t0) + ' ms');
+        var lastPaint = 0;
+        var tpl = await AGV_EXPORT.loadTemplate(function (got, total) {
+          // 节流：每 250ms 或接近完成时刷一次，避免重绘过频
+          var now = Date.now();
+          if (now - lastPaint < 250 && got < total) return;
+          lastPaint = now;
+          var pct = total ? Math.round(got / total * 100) : 0;
+          var el = rTpl.el.querySelector('.dt');
+          if (el) el.textContent = '正在下载… ' + (got / 1048576).toFixed(2) + ' / ' +
+            (total / 1048576).toFixed(2) + ' MB（' + pct + '%）';
+        });
+        var secs = ((Date.now() - t0) / 1000).toFixed(1);
+        rTpl.set(true, (tpl.byteLength / 1048576).toFixed(2) + ' MB，用时 ' + secs + ' 秒');
 
         var t1 = Date.now();
         var blob = await AGV_XLSX.generate(tpl, { customer: 'SELFTEST' },

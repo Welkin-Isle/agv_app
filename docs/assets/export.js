@@ -19,13 +19,40 @@
   var TPL_URL = 'template/template.xlsx';
   var _tplBuf = null;
 
-  async function loadTemplate() {
+  /**
+   * 加载调研表模板（4.81 MB）。首次需要下载，之后走 Service Worker / 内存缓存。
+   * @param {(received:number, total:number)=>void} [onProgress] 下载进度回调
+   */
+  async function loadTemplate(onProgress) {
     if (_tplBuf) return _tplBuf;
-    var res = await fetch(TPL_URL, { cache: 'force-cache' });
-    if (!res.ok) throw new Error('找不到调研表模板（' + TPL_URL + '）');
-    _tplBuf = await res.arrayBuffer();
+    var res = await fetch(TPL_URL);
+    if (!res.ok) throw new Error('找不到调研表模板（' + TPL_URL + '，HTTP ' + res.status + '）');
+
+    // 能拿到 content-length 且支持流式读取时，报告真实进度；
+    // 否则退化为一次性读取（不会卡死，只是没有百分比）。
+    var total = Number(res.headers.get('content-length') || 0);
+    if (!res.body || !total || typeof res.body.getReader !== 'function') {
+      _tplBuf = await res.arrayBuffer();
+      if (onProgress) onProgress(_tplBuf.byteLength, _tplBuf.byteLength);
+      return _tplBuf;
+    }
+
+    var reader = res.body.getReader();
+    var chunks = [], received = 0;
+    for (;;) {
+      var step = await reader.read();
+      if (step.done) break;
+      chunks.push(step.value);
+      received += step.value.length;
+      if (onProgress) onProgress(received, total);
+    }
+    var buf = new Uint8Array(received), off = 0;
+    for (var i = 0; i < chunks.length; i++) { buf.set(chunks[i], off); off += chunks[i].length; }
+    _tplBuf = buf.buffer;
     return _tplBuf;
   }
+
+  function isTemplateLoaded() { return !!_tplBuf; }
 
   function pad2(n) { return n < 10 ? '0' + n : '' + n; }
   function stamp(d) {
@@ -208,6 +235,6 @@
   g.AGV_EXPORT = {
     build: build, saveBlob: saveBlob,
     encryptBlob: encryptBlob, decryptBlob: decryptBlob,
-    loadTemplate: loadTemplate, baseName: baseName
+    loadTemplate: loadTemplate, isTemplateLoaded: isTemplateLoaded, baseName: baseName
   };
 })(typeof window !== 'undefined' ? window : globalThis);

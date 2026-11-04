@@ -263,6 +263,18 @@
       $('main').innerHTML = '<div class="notice bad">加载失败：' + esc(err.message) +
         '<br><span class="tiny">如果是首次使用，请确认不是用 file:// 直接打开（需要 http/https 才能用本地数据库）</span></div>';
     }
+    // 空闲时预热 4.8MB 调研表模板：等用户真的点「导出」时就不用再等下载
+    // （同时让 Service Worker 有机会把它缓存下来，之后完全离线可用）
+    var warm = function () {
+      if (EX.isTemplateLoaded && EX.isTemplateLoaded()) return;
+      EX.loadTemplate().then(function () {
+        var el = $('storage-state');
+        if (el && el.textContent.indexOf('准备') < 0) el.title = '调研表模板已就绪，可离线导出';
+      }).catch(function () { /* 预热失败不影响使用，导出时会再试 */ });
+    };
+    if (window.requestIdleCallback) setTimeout(function () { requestIdleCallback(warm); }, 2500);
+    else setTimeout(warm, 4000);
+
     // 存储状态
     DB.usage().then(function (u) {
       if (u.quota) {
