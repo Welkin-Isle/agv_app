@@ -74,16 +74,21 @@ const answers = {
       pallet_length: { m: 'single', v: 600 }, pallet_width: { m: 'single', v: 400 },
       cargo_height: { m: 'single', v: 900 }, pallet_height: { m: 'single', v: 120 } }
   ],
+  place: [
+    { code: 'D1', name: '原料库' },
+    { code: 'E1', name: '包装线' },
+    { code: 'F1', name: '缓存区' }
+  ],
   flow: [
-    { pick_point: '1F 原料库 A 区', drop_point: '2F 包装线 3 号工位', flow_material: 'A1', flow_carrier: 'B1', flow_rate: { m: 'single', v: 45 } },
-    { pick_point: '2F 缓存区', drop_point: '1F 出货口', flow_material: 'A2', flow_carrier: 'B1', flow_rate: { m: 'single', v: 30 } }
+    { route_start: 'D1 原料库', via1: 'F1 缓存区', route_end: 'E1 包装线', cargo: 'A1（箱装）', flow_rate: { m: 'single', v: 45 } },
+    { route_start: 'E1 包装线', route_end: 'F1 缓存区', cargo: 'C1（自动码盘）', flow_rate: { m: 'single', v: 30 } }
   ],
   process: { process_text: '原料入库 → 拆包 → 码盘 → 货架存储 → 按订单拣选 → 出货装车。' },
   site: {
     temperature: { m: 'range', a: -18, b: 5 },
     building_height: { m: 'single', v: 9 },
-    slope: { m: 'single', v: 0 },
-    floor_capacity: { m: 'ge', v: 2 },
+    slope: { m: 'le', v: 0 },
+    floor_capacity: { m: 'le', v: 2 },
     floor_condition: '良好（平整、无裂缝）',
     glare: '无',
     dust: '无'
@@ -94,9 +99,9 @@ const answers = {
     trigger_by_system: '是', trigger_mode: '系统联机自动运行', trigger_place: '集中区域'
   },
   extra: {
-    aisle_width_mm: { m: 'single', v: 2000 },
+    aisle_width_mm: { m: 'range', a: 2000, b: null },
     site_environment: '室内',
-    stacking_layers: { m: 'single', v: 3 }
+    stacking_layers: { m: 'place_layers', place: 'F1 缓存区', n: 3 }
   },
   other: { other_requirements: '客户要求三向堆垛式；如运营需要也可接受三向+前移式。现场电压 380V/60Hz。' }
 };
@@ -148,9 +153,10 @@ probe = {
   "combo1.stack": (31,6), "combo1.load": (32,6), "combo1.pallet_L": (33,6),
   "combo1.fork_hole_h": (42,6),
   "combo2.stack": (43,6), "combo2.pallet_L": (45,6),
-  "flow1.pick": (55,6), "flow1.rate": (59,6),
-  "flow2.pick": (60,6),
-  "site.temp": (66,6), "site.height": (67,6), "site.capacity": (70,6),
+  "flow1.start": (55,6), "flow1.end": (56,6), "flow1.cargo": (57,6), "flow1.rate": (59,6),
+  "flow1.carrier_col_empty": (58,6),
+  "flow2.start": (60,6),
+  "site.temp": (66,6), "site.height": (67,6), "site.slope": (68,6), "site.capacity": (70,6),
   "work.driver": (74,6), "work.time": (75,6),
   "sys.erp": (76,6), "sys.trigger_mode": (80,6),
   "process": (65,3),
@@ -216,12 +222,15 @@ eq('combo1.load', '1000 ~ 1200');
 eq('combo1.pallet_L', '1000');
 eq('combo1.fork_hole_h', '100');
 eq('combo2.stack', '自动码盘');
-eq('flow1.pick', '1F 原料库');
+eq('flow1.start', 'D1 原料库');
+eq('flow1.end', 'E1 包装线');
+eq('flow1.cargo', 'A1');
 eq('flow1.rate', '45');
-eq('flow2.pick', '2F 缓存区');
+eq('flow2.start', 'E1 包装线');
 eq('site.temp', '-18 ~ 5');
 eq('site.height', '9');
-eq('site.capacity', '≥ 2');
+eq('site.capacity', '≤ 2');
+eq('site.slope', '≤ 0');
 eq('work.driver', '6');
 eq('sys.erp', 'SAP');
 eq('sys.trigger_mode', '系统联机自动运行');
@@ -241,7 +250,8 @@ Object.entries(R.types).forEach(([k, t]) => {
 console.log('\n— 5) 扩展区（超出原表容量的部分 + 选型补充 + 其他需求） —');
 const extText = R.ext.map(x => (x[1] || '') + '=' + (x[2] || '')).join(' | ');
 console.log('     R84 起共 ' + R.ext.length + ' 行');
-['物料 A3', '载具 B2', '组合 C3', '现场实际通道宽度最小值', '运行环境', '堆叠层数', '其他需求', '三向堆垛式']
+['物料 A3', '载具 B2', '组合 C3', '现场实际通道宽度', '运行环境', '堆叠层数', '其他需求', '三向堆垛式',
+   '地点清单', 'D1', '原料库', '3 层', '≥ 2000']
   .forEach(k => check('扩展区含「' + k + '」', extText.includes(k)));
 
 console.log('\n' + '='.repeat(72));

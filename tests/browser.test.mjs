@@ -167,11 +167,10 @@ items.forEach(function (it) { console.log('    ' + it.ic + ' ' + it.name + ' —
 const byName = n => items.filter(function (x) { return x.name.indexOf(n) >= 0; })[0] || { ic: '', dt: '缺失' };
 const okItem = n => byName(n).ic === '✓';
 
-check('自检项 8 条', items.length === 8, String(items.length));
+check('自检项 7 条', items.length === 7, String(items.length));
 check('本地数据库（IndexedDB）', okItem('本地数据库'), byName('本地数据库').dt);
 check('加密能力（WebCrypto）', okItem('加密能力'), byName('加密能力').dt);
 check('离线缓存（Service Worker）', okItem('离线缓存'), byName('离线缓存').dt);
-check('录视频（MediaRecorder）', okItem('录视频'), byName('录视频').dt);
 check('解压能力（DecompressionStream）', okItem('解压能力'), byName('解压能力').dt);
 check('加载调研表模板', okItem('调研表模板') && /[\d.]+\s*(KB|MB)/.test(byName('调研表模板').dt),
   byName('调研表模板').dt);
@@ -416,6 +415,223 @@ check('首页菜单含「导出全部方案」', menu2.indexOf('导出全部方�
 const err5 = consoleErrors(p5.cdp);
 check('导出链路无 console 错误', err5.length === 0, err5.slice(0, 2).join(' | '));
 p5.ws.close();
+
+/* ---------- 5. 交互回归（2026-11-05 十条改动） ---------- */
+console.log('\n— 5) 交互回归（即时重绘 / 其它说明 / 引用下拉 / 参考图 / 地点→流程 / 附件预览） —');
+
+const HELPERS = `function fieldByLabel(t){
+  var all = [].slice.call(document.querySelectorAll('.field'));
+  for (var i=0;i<all.length;i++){
+    var l = all[i].querySelector('.flabel');
+    if (l && l.textContent.trim().indexOf(t) === 0) return all[i];
+  }
+  return null;
+}`;
+
+/* 5a 模式切换即时重绘 */
+const p6 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=material');
+await sleep(2000);
+const repaint = await p6.cdp.evaluate(`(function(){ ${HELPERS}
+  var f = fieldByLabel('\u91cd\u91cf');
+  if (!f) return { err: 'no-field' };
+  var before = f.querySelectorAll('.mode-body input').length;
+  [].slice.call(f.querySelectorAll('.modes span')).forEach(function(s){
+    if (s.textContent === '范围') s.click();
+  });
+  var after = f.querySelectorAll('.mode-body input').length;
+  var on = (f.querySelector('.modes .on') || {}).textContent;
+  return { before: before, after: after, on: on };
+})()`, false);
+check('点「范围」立刻变成两个输入框（不用重进）', repaint.after === 2, JSON.stringify(repaint));
+check('模式按钮选中态立刻跟随', repaint.on === '范围', String(repaint.on));
+
+/* 5b 选"其它"立刻弹说明框 */
+const p7 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=carrier');
+await sleep(2000);
+const other = await p7.cdp.evaluate(`(function(){ ${HELPERS}
+  var f = fieldByLabel('\u8f7d\u5177\u7c7b\u578b');
+  if (!f) return { err: 'no-field' };
+  var sel = f.querySelector('select');
+  sel.value = '__other';
+  sel.dispatchEvent(new Event('change'));
+  var box = f.querySelector('.other-box');
+  return {
+    has: !!box,
+    label: box ? (box.querySelector('.other-label') || {}).textContent : '',
+    hasInput: box ? !!box.querySelector('input') : false
+  };
+})()`, false);
+check('选「其它（请说明）」立刻弹出输入框', other.has === true, JSON.stringify(other));
+check('说明框带「说明内容」字样', other.label === '说明内容', String(other.label));
+check('说明框有可输入的文本框', other.hasInput === true);
+
+/* 5c 对应物料是引用下拉 */
+const refSel = await p7.cdp.evaluate(`(function(){ ${HELPERS}
+  var f = fieldByLabel('\u5bf9\u5e94\u7269\u6599');
+  if (!f) return { err: 'no-field' };
+  var sel = f.querySelector('select');
+  return { isSelect: !!sel, opts: sel ? [].slice.call(sel.options).map(function(o){ return o.textContent; }) : [] };
+})()`, false);
+check('「对应物料」已改为下拉', refSel.isSelect === true);
+check('下拉里有 A1', (refSel.opts || []).some(function(o){ return o.indexOf('A1') === 0; }), (refSel.opts || []).join(' | '));
+
+/* 5d 组合 C 的参考图按钮 */
+const p8 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=combo');
+await sleep(2000);
+const refImg = await p8.cdp.evaluate(`(async function(){
+  var btn = document.getElementById('btn-ref');
+  if (!btn) return { btn: false };
+  btn.click();
+  await new Promise(function(r){ setTimeout(r, 400); });
+  var mask = document.getElementById('overlay');
+  var img = mask ? mask.querySelector('img') : null;
+  var ok = false;
+  if (img) { ok = img.complete && img.naturalWidth > 0; }
+  if (mask) mask.remove();
+  return { btn: true, mask: !!mask, src: img ? img.getAttribute('src') : '', loaded: ok };
+})()`);
+check('组合模块有「参考图」按钮', refImg.btn === true);
+check('点开后弹出浮层且图片加载成功', refImg.mask === true && refImg.loaded === true,
+  'src=' + refImg.src + ' loaded=' + refImg.loaded);
+
+/* 5e 地点填写 → 流程下拉自动出现 */
+const p9 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=flow');
+await sleep(2000);
+const flowSync = await p9.cdp.evaluate(`(async function(){
+  var cards = [].slice.call(document.querySelectorAll('.rep'));
+  if (!cards.length) return { err: 'no-rep' };
+  var placeCard = cards[0];
+  var ins = placeCard.querySelectorAll('.rep-body input[type=text]');
+  if (ins.length < 2) return { err: 'no-place-inputs', n: ins.length };
+  ins[0].value = 'X1'; ins[0].dispatchEvent(new Event('input'));
+  ins[1].value = '测试区'; ins[1].dispatchEvent(new Event('input'));
+  await new Promise(function(r){ setTimeout(r, 900); });   // 等防抖刷新
+  var all = [].slice.call(document.querySelectorAll('.rep'));
+  var flowCard = all[all.length - 1];
+  var sel = flowCard.querySelector('select');
+  var opts = sel ? [].slice.call(sel.options).map(function(o){ return o.textContent; }) : [];
+  return { opts: opts.slice(0, 6) };
+})()`);
+check('地点填入后，流程起终点下拉自动出现该地点',
+  (flowSync.opts || []).some(function(o){ return o.indexOf('X1') === 0; }),
+  JSON.stringify(flowSync.opts));
+
+/* 5f 附件上传后可点开预览 + 改备注 */
+const p10 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=media');
+await sleep(2000);
+const mediaFlow = await p10.cdp.evaluate(`(async function(){
+  var canvas = document.createElement('canvas');
+  canvas.width = 120; canvas.height = 90;
+  var x = canvas.getContext('2d');
+  x.fillStyle = '#e11d48'; x.fillRect(0, 0, 120, 90);
+  var blob = await new Promise(function(r){ canvas.toBlob(r, 'image/png'); });
+  var file = new File([blob], 'preview-test.png', { type: 'image/png' });
+  var input = document.querySelector('input[type=file]');
+  if (!input) return { err: 'no-input' };
+  var dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  input.dispatchEvent(new Event('change'));
+  await new Promise(function(r){ setTimeout(r, 2500); });
+  var att = document.querySelector('.att');
+  if (!att) return { err: 'no-att' };
+  att.click();
+  await new Promise(function(r){ setTimeout(r, 400); });
+  var mask = document.getElementById('overlay');
+  var img = mask ? mask.querySelector('img') : null;
+  var loaded = false;
+  if (img) { loaded = img.complete && img.naturalWidth > 0; }
+  var btns = mask ? [].slice.call(mask.querySelectorAll('.ov-foot .btn')).map(function(b){ return b.textContent; }) : [];
+  if (mask) mask.remove();
+  return { attCount: document.querySelectorAll('.att').length, mask: !!mask, loaded: loaded, btns: btns };
+})()`);
+check('附件上传成功', mediaFlow.attCount >= 1, JSON.stringify({ n: mediaFlow.attCount, err: mediaFlow.err }));
+check('点缩略图弹出预览浮层', mediaFlow.mask === true);
+check('预览图片真的加载出来', mediaFlow.loaded === true);
+check('预览里有「修改备注」和「删除」', (mediaFlow.btns || []).join(',').indexOf('修改备注') >= 0 &&
+  (mediaFlow.btns || []).join(',').indexOf('删除') >= 0, (mediaFlow.btns || []).join(','));
+
+/* 5h 物料尺寸只有精确值 + 提示语 */
+const sizeField = await p6.cdp.evaluate(`(function(){ ${HELPERS}
+  var f = fieldByLabel('\u5c3a\u5bf8');
+  if (!f) return { err: 'no-field' };
+  return {
+    hasModes: !!f.querySelector('.modes'),
+    hint: (f.querySelector('.fhint') || {}).textContent || ''
+  };
+})()`, false);
+check('物料尺寸已无「范围」选项', sizeField.hasModes === false, JSON.stringify(sizeField));
+check('尺寸处有「请下滑添加」提示',
+  (sizeField.hint || '').indexOf('下滑添加') >= 0, String(sizeField.hint));
+
+/* 5i 温度只有范围；坡度/承重只有 ≤ */
+const p11 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=site');
+await sleep(2000);
+const siteModes = await p11.cdp.evaluate(`(function(){ ${HELPERS}
+  function shapeOf(label){
+    var f = fieldByLabel(label);
+    if (!f) return null;
+    var sep = f.querySelector('.mode-body .sep');
+    return {
+      hasSwitcher: !!f.querySelector('.modes'),
+      sep: sep ? sep.textContent : '',
+      inputs: f.querySelectorAll('.mode-body input').length
+    };
+  }
+  return {
+    temp: shapeOf('\u6e29\u5ea6\u8303\u56f4'),
+    slope: shapeOf('\u5730\u9762\u5761\u5ea6'),
+    cap: shapeOf('\u5730\u9762\u3001\u697c\u677f\u627f\u91cd'),
+    hasColdHint: document.body.innerText.indexOf('\u51b7\u5e93') >= 0
+  };
+})()`, false);
+// 单一模式时不显示切换条，直接用该形态：温度=范围(两输入+~)，坡度/承重=≤(一个输入)
+check('温度只有范围形态（两输入 + ~，无切换条）',
+  siteModes.temp && siteModes.temp.hasSwitcher === false &&
+  siteModes.temp.inputs === 2 && siteModes.temp.sep === '~', JSON.stringify(siteModes.temp));
+check('地面坡度只有 ≤ 形态（无切换条）',
+  siteModes.slope && siteModes.slope.hasSwitcher === false &&
+  siteModes.slope.inputs === 1 && siteModes.slope.sep === '≤', JSON.stringify(siteModes.slope));
+check('楼板承重只有 ≤ 形态（无切换条）',
+  siteModes.cap && siteModes.cap.hasSwitcher === false &&
+  siteModes.cap.inputs === 1 && siteModes.cap.sep === '≤', JSON.stringify(siteModes.cap));
+check('已删除「若有冷库/冷冻区请填最低温度」', siteModes.hasColdHint === false);
+
+/* 5j 通道宽度无"最小值"且只有范围；层数=地点+层数 */
+const p12 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=extra');
+await sleep(2000);
+const extraUI = await p12.cdp.evaluate(`(function(){ ${HELPERS}
+  var a = fieldByLabel('\u73b0\u573a\u5b9e\u9645\u901a\u9053\u5bbd\u5ea6');
+  var lay = fieldByLabel('\u5806\u53e0\u5c42\u6570');
+  var sep = a ? a.querySelector('.mode-body .sep') : null;
+  return {
+    aisleLabel: a ? (a.querySelector('.flabel') || {}).textContent || '' : '',
+    aisleSwitcher: !!(a && a.querySelector('.modes')),
+    aisleSep: sep ? sep.textContent : '',
+    aisleInputs: a ? a.querySelectorAll('.mode-body input').length : 0,
+    layerHasSelect: !!(lay && lay.querySelector('select')),
+    layerHasNumber: !!(lay && lay.querySelector('input[type=number]')),
+    layerUnit: lay ? (lay.querySelector('.unit') || {}).textContent || '' : ''
+  };
+})()`, false);
+check('通道宽度标题已去掉「最小值」', (extraUI.aisleLabel || '').indexOf('最小值') < 0, String(extraUI.aisleLabel));
+check('通道宽度只有范围形态（两输入 + ~，无切换条）',
+  extraUI.aisleSwitcher === false && extraUI.aisleInputs === 2 && extraUI.aisleSep === '~',
+  JSON.stringify({ sw: extraUI.aisleSwitcher, sep: extraUI.aisleSep, n: extraUI.aisleInputs }));
+check('堆叠层数左侧是地点下拉', extraUI.layerHasSelect === true);
+check('堆叠层数右侧是数字输入且带「层」',
+  extraUI.layerHasNumber === true && extraUI.layerUnit === '层',
+  'unit=' + extraUI.layerUnit);
+
+[p11, p12].forEach(function (x) { try { x.ws.close(); } catch (e) {} });
+
+/* 5g 已无"现场视频"录制 */
+check('附件页已无录制视频按钮', await p10.cdp.evaluate(
+  `!document.querySelector('#btn-rec-stop') && document.body.innerText.indexOf('录制视频') < 0`, false));
+check('上传按钮文案为「点击上传」', await p10.cdp.evaluate(
+  `document.body.innerText.indexOf('点击上传') >= 0 && document.body.innerText.indexOf('点击选择') < 0`, false));
+
+[p6, p7, p8, p9, p10].forEach(function (x) { try { x.ws.close(); } catch (e) {} });
 
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(74));

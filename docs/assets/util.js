@@ -25,7 +25,7 @@
     if (Array.isArray(v)) return v.length === 0;
     if (typeof v === 'object') {
       if (v.m === 'unknown') return false;             // "不确定" 是有效回答
-      if (v.m === 'single' || v.m === 'ge') return !isNum(v.v);
+      if (v.m === 'single' || v.m === 'ge' || v.m === 'le') return !isNum(v.v);
       if (v.m === 'range') return !isNum(v.a) && !isNum(v.b);
       return Object.keys(v).length === 0;
     }
@@ -45,6 +45,7 @@
         if (isNum(v.b)) return '≤ ' + v.b + u;
         return '';
       case 'ge': return isNum(v.v) ? '≥ ' + v.v + u : '';
+      case 'le': return isNum(v.v) ? '≤ ' + v.v + u : '';
       case 'unknown': return '不确定 / 待确认';
       default: return '';
     }
@@ -55,6 +56,11 @@
     if (val === null || val === undefined) return '';
     if (Array.isArray(val)) return val.join('、');
     if (field) {
+      if (field.type === 'place_layers') {
+        var pl = (val && val.place) ? val.place : '';
+        var pn = (val && isNum(val.n)) ? val.n + ' 层' : '';
+        return [pl, pn].filter(Boolean).join(' · ');
+      }
       if (field.type === 'number') return fmtNumber(val, field.unit);
       if (field.type === 'multi') return Array.isArray(val) ? val.join('、') : String(val);
     }

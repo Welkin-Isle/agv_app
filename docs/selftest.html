@@ -76,7 +76,6 @@
     var rIdb = add('本地数据库（IndexedDB）', '用来存方案和照片');
     var rCrypto = add('加密能力（WebCrypto）', '导出加密包用');
     var rSw = add('离线缓存（Service Worker）', '断网也能打开');
-    var rRec = add('录视频（MediaRecorder）', '现场拍视频用');
     var rDs = add('解压能力（DecompressionStream）', '生成调研表必需');
     var rTpl = add('调研表模板', '生成表格的母版；首次需下载，之后离线可用');
     var rXlsx = add('生成调研表 xlsx', '实测一次真实生成');
@@ -84,8 +83,6 @@
 
     rCrypto.set(!!(window.crypto && crypto.subtle), crypto.subtle ? '支持 AES-GCM' : '缺少 crypto.subtle');
     rSw.set('serviceWorker' in navigator, 'serviceWorker' in navigator ? '支持离线' : '不支持（仍可在线使用）');
-    rRec.set(window.AGV_MEDIA && AGV_MEDIA.supportsRecording(),
-      window.AGV_MEDIA && AGV_MEDIA.supportsRecording() ? '可以录制' : '不支持（仍可从相册选视频）');
     rDs.set(typeof DecompressionStream === 'function',
       typeof DecompressionStream === 'function' ? '支持' : '不支持 → 无法生成表格');
 

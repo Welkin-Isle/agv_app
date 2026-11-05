@@ -387,3 +387,47 @@ textarea.small{min-height:60px}
   stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;display:block}
 .mod.done .ico{color:var(--ok)}
 .mod.part .ico{color:#c2872b}
+
+/* =============================================================================
+ * 2026-11-05 新增：其它说明框 / 地点层数 / 双列地点 / 路线摘要 / 浮层
+ * ========================================================================== */
+
+/* 下拉选"其它（请说明）"后弹出的说明框 */
+.other-box{margin-top:8px;padding:9px 11px;border-radius:var(--r-sm);
+  background:var(--brand-soft);border:1px solid var(--brand-line)}
+.other-label{font-size:11.5px;font-weight:650;color:var(--brand-2);margin-bottom:5px}
+.other-box input{background:#fff}
+
+/* 地点 + 层数（左右并排） */
+.pl-row{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:8px;align-items:center}
+.pl-num{display:flex;gap:0;align-items:stretch}
+.pl-num input{flex:1;min-width:0;border-top-right-radius:0;border-bottom-right-radius:0}
+.pl-num .unit{display:flex;align-items:center;padding:0 11px;
+  border:1.5px solid var(--line);border-left:0;border-top-right-radius:var(--r-sm);
+  border-bottom-right-radius:var(--r-sm);background:var(--panel-2);font-size:12.5px;color:var(--ink2)}
+
+/* 地点清单：代号 + 名称两列 */
+.pl2{display:grid;grid-template-columns:110px minmax(0,1fr);gap:9px}
+.pl2 .field{margin-bottom:0}
+@media(max-width:380px){.pl2{grid-template-columns:1fr}}
+
+/* 流程路线摘要 */
+.route-line{margin-top:12px;padding:10px 12px;border-radius:var(--r-sm);
+  background:linear-gradient(180deg,#f7faff,#fff);border:1px solid var(--brand-line);
+  font-size:13px;font-weight:650;color:var(--brand-2);line-height:1.6;word-break:break-all}
+
+/* 通用浮层（参考图 / 附件预览） */
+.ov-mask{position:fixed;inset:0;z-index:80;background:rgba(15,23,42,.72);
+  display:flex;align-items:center;justify-content:center;padding:16px}
+.ov-box{display:flex;flex-direction:column;width:100%;max-width:640px;max-height:92vh;
+  background:#fff;border-radius:16px;overflow:hidden;box-shadow:var(--sh-3)}
+.ov-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 14px;border-bottom:1px solid var(--line);font-size:13.5px;font-weight:650;color:#1e293b}
+.ov-x{border:0;background:transparent;font-size:22px;line-height:1;color:var(--ink3);cursor:pointer;padding:0 4px}
+.ov-scroll{overflow:auto;-webkit-overflow-scrolling:touch;padding:12px}
+.ov-body img{display:block;width:100%;height:auto;border-radius:10px;background:#f8fafc}
+.ov-file{text-align:center;padding:22px 10px}
+.ov-file .big{font-size:14px;font-weight:650;margin-bottom:6px;word-break:break-all}
+.ov-file .btn{display:inline-block;margin-top:12px;text-decoration:none}
+.ov-meta{font-size:11.5px;color:var(--ink3);margin-top:10px;line-height:1.6;word-break:break-all}
+.ov-foot{display:flex;gap:9px;padding:11px 14px;border-top:1px solid var(--line);background:var(--panel-2)}

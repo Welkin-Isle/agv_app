@@ -51,7 +51,7 @@
       dim_L1: 4, dim_L2: 5, fork_hole_width: 6, pallet_width: 7,
       cargo_width: 8, cargo_height: 9, pallet_height: 10, fork_hole_height: 11 } },
     flow: { base: 55, stride: 5, capacity: 2, label: '流程', prefix: 'D', cols: {
-      pick_point: 0, drop_point: 1, flow_material: 2, flow_carrier: 3, flow_rate: 4 } }
+      route_start: 0, route_end: 1, cargo: 2, flow_rate: 4 } }
   };
 
   var EXTRA_LABELS = {
@@ -62,6 +62,7 @@
 
   /* ---------------- 值格式化 ---------------- */
   function isNum(x) { return x !== null && x !== undefined && x !== '' && !isNaN(Number(x)); }
+  function str(v) { return v === null || v === undefined ? '' : String(v); }
 
   /** 返回 {text, num}；num 非 null 时用数字型写入 */
   function fmtAnswer(field, val) {
@@ -85,8 +86,18 @@
         case 'ge':
           if (!isNum(val.v)) return null;
           return { text: '≥ ' + val.v };
+        case 'le':
+          if (!isNum(val.v)) return null;
+          return { text: '≤ ' + val.v };
         case 'unknown':
           return { text: '不确定/待确认' };
+        case 'place_layers':
+          var a = val.place ? String(val.place) : '';
+          var b = isNum(val.n) ? (val.n + ' 层') : '';
+          var arr = [];
+          if (a) arr.push(a);
+          if (b) arr.push(b);
+          return arr.length ? { text: arr.join(' · ') } : null;
         default:
           return null;
       }
@@ -256,6 +267,18 @@
       var p = fmtAnswer(fieldDef['extra.' + k], extraStore[k]);
       if (p) ext.push({ label: EXTRA_LABELS[k], payload: p });
     });
+    // 地点清单（原表无此栏，写进扩展区保留信息）
+    var places = Array.isArray(answers.place) ? answers.place : [];
+    var placeOk = places.filter(function (p) {
+      return (p && (str(p.code) || str(p.name)));
+    });
+    if (placeOk.length) {
+      ext.push({ head: '【地点清单】（物流流程起终点引用）' });
+      placeOk.forEach(function (p) {
+        var code = str(p.code).trim(), nm = str(p.name).trim();
+        ext.push({ label: code || '(无代号)', payload: { text: nm || '' } });
+      });
+    }
     var other = (answers.other || {}).other_requirements;
     if (other && String(other).trim()) {
       ext.push({ label: '其他需求（指定车型、特殊条件等）', payload: { text: String(other).trim() } });

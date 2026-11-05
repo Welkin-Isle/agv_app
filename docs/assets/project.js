@@ -43,6 +43,15 @@
         if (!U.isEmpty(store[f.key])) filled++;
       });
     });
+    if (st.preRepeat) {
+      var pl = ans[st.preRepeat.id] || [];
+      pl.forEach(function (it) {
+        st.preRepeat.fields.forEach(function (f) {
+          total++; if (!U.isEmpty(it[f.key])) filled++;
+        });
+      });
+      if (!pl.length) total += st.preRepeat.fields.length;
+    }
     if (st.repeat) {
       var arr = ans[st.repeat.id] || [];
       if (!arr.length) arr = [{}];
