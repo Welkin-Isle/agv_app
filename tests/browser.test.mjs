@@ -111,6 +111,25 @@ async function newTab(url) {
   return { cdp, targetId: t.id, ws };
 }
 
+/* 等页面真正渲染出内容（线上首次加载比本地慢，不能固定 sleep） */
+async function waitReady(cdp, expr, ms) {
+  ms = ms || 20000;
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    try {
+      if (await cdp.evaluate(expr, false)) return true;
+    } catch (e) { /* 页面还没就绪 */ }
+    await sleep(250);
+  }
+  return false;
+}
+// 页面"真的渲染好了"= main 有子节点，且不再是"正在加载…/加载中…"占位符
+const READY_EXPR = "(function(){var m=document.getElementById('main');if(!m)return false;" +
+  "var t=m.innerText||'';return m.children.length>0&&t.indexOf('\u6b63\u5728\u52a0\u8f7d')<0&&t.indexOf('\u52a0\u8f7d\u4e2d')<0;})()";
+async function ready(tab, ms) {
+  return waitReady(tab.cdp, READY_EXPR, ms);
+}
+
 function consoleErrors(cdp) {
   const out = [];
   for (const e of cdp.events) {
@@ -188,7 +207,7 @@ p1.ws.close();
 /* ---------- 2. 首页 ---------- */
 console.log('\n— 2) 首页（我的方案） —');
 const p2 = await newTab(SITE + '/index.html');
-await sleep(2500);
+await ready(p2);
 const homeInfo = await p2.cdp.evaluate(`(() => {
   const m = document.getElementById('main');
   return {
@@ -218,7 +237,7 @@ const pid = await p2.cdp.evaluate(`(async () => {
 check('通过页面 API 创建方案', !!pid, pid);
 
 const p3 = await newTab(SITE + '/project.html?id=' + encodeURIComponent(pid));
-await sleep(2500);
+await ready(p3);
 const projInfo = await p3.cdp.evaluate(`(() => {
   const m = document.getElementById('main');
   const mods = document.querySelectorAll('.mod');
@@ -237,7 +256,7 @@ const err3 = consoleErrors(p3.cdp);
 check('工作台无 console 错误', err3.length === 0, err3.slice(0, 2).join(' | '));
 
 const p4 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=combo');
-await sleep(2500);
+await ready(p4);
 const modInfo = await p4.cdp.evaluate(`(() => {
   const m = document.getElementById('main');
   return {
@@ -430,7 +449,7 @@ const HELPERS = `function fieldByLabel(t){
 
 /* 5a 模式切换即时重绘 */
 const p6 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=material');
-await sleep(2000);
+await ready(p6);
 const repaint = await p6.cdp.evaluate(`(function(){ ${HELPERS}
   var f = fieldByLabel('\u91cd\u91cf');
   if (!f) return { err: 'no-field' };
@@ -447,7 +466,7 @@ check('模式按钮选中态立刻跟随', repaint.on === '范围', String(repai
 
 /* 5b 选"其它"立刻弹说明框 */
 const p7 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=carrier');
-await sleep(2000);
+await ready(p7);
 const other = await p7.cdp.evaluate(`(function(){ ${HELPERS}
   var f = fieldByLabel('\u8f7d\u5177\u7c7b\u578b');
   if (!f) return { err: 'no-field' };
@@ -477,7 +496,7 @@ check('下拉里有 A1', (refSel.opts || []).some(function(o){ return o.indexOf(
 
 /* 5d 组合 C 的参考图按钮 */
 const p8 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=combo');
-await sleep(2000);
+await ready(p8);
 const refImg = await p8.cdp.evaluate(`(async function(){
   var btn = document.getElementById('btn-ref');
   if (!btn) return { btn: false };
@@ -486,7 +505,10 @@ const refImg = await p8.cdp.evaluate(`(async function(){
   var mask = document.getElementById('overlay');
   var img = mask ? mask.querySelector('img') : null;
   var ok = false;
-  if (img) { ok = img.complete && img.naturalWidth > 0; }
+  for (var i = 0; i < 20; i++) {
+    if (img && img.complete && img.naturalWidth > 0) { ok = true; break; }
+    await new Promise(function(r){ setTimeout(r, 200); });
+  }
   if (mask) mask.remove();
   return { btn: true, mask: !!mask, src: img ? img.getAttribute('src') : '', loaded: ok };
 })()`);
@@ -496,7 +518,8 @@ check('点开后弹出浮层且图片加载成功', refImg.mask === true && refI
 
 /* 5e 地点填写 → 流程下拉自动出现 */
 const p9 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=flow');
-await sleep(2000);
+await ready(p9);
+await waitReady(p9.cdp, "document.querySelectorAll('.rep').length >= 2");
 const flowSync = await p9.cdp.evaluate(`(async function(){
   var cards = [].slice.call(document.querySelectorAll('.rep'));
   if (!cards.length) return { err: 'no-rep' };
@@ -518,7 +541,8 @@ check('地点填入后，流程起终点下拉自动出现该地点',
 
 /* 5f 附件上传后可点开预览 + 改备注 */
 const p10 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=media');
-await sleep(2000);
+await ready(p10);
+await waitReady(p10.cdp, "document.querySelectorAll('input[type=file]').length > 0");
 const mediaFlow = await p10.cdp.evaluate(`(async function(){
   var canvas = document.createElement('canvas');
   canvas.width = 120; canvas.height = 90;
@@ -566,7 +590,7 @@ check('尺寸处有「请下滑添加」提示',
 
 /* 5i 温度只有范围；坡度/承重只有 ≤ */
 const p11 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=site');
-await sleep(2000);
+await ready(p11);
 const siteModes = await p11.cdp.evaluate(`(function(){ ${HELPERS}
   function shapeOf(label){
     var f = fieldByLabel(label);
@@ -599,7 +623,7 @@ check('已删除「若有冷库/冷冻区请填最低温度」', siteModes.hasCo
 
 /* 5j 通道宽度无"最小值"且只有范围；层数=地点+层数 */
 const p12 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=extra');
-await sleep(2000);
+await ready(p12);
 const extraUI = await p12.cdp.evaluate(`(function(){ ${HELPERS}
   var a = fieldByLabel('\u73b0\u573a\u5b9e\u9645\u901a\u9053\u5bbd\u5ea6');
   var reps = document.querySelectorAll('.rep');
@@ -644,7 +668,7 @@ console.log('\n— 6) 本轮调整（基本信息顺序 / 定制载具说明 / �
 
 /* 6a 基本信息：项目名称在前、客户名称在后、无「联系方式」 */
 const p13 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=basic');
-await sleep(2000);
+await ready(p13);
 const basicUI = await p13.cdp.evaluate(`(function(){
   var labels = [].slice.call(document.querySelectorAll('#main .flabel')).map(function(l){
     return l.textContent.replace(/[*\\s]/g, '');
@@ -657,7 +681,7 @@ check('已删除「联系方式」输入框', basicUI.hasContact === false);
 
 /* 6b 载具类型选「定制载具」也弹说明框 */
 const p14 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=carrier');
-await sleep(2000);
+await ready(p14);
 const customCarrier = await p14.cdp.evaluate(`(function(){ ${HELPERS}
   var f = fieldByLabel('\\u8f7d\\u5177\\u7c7b\\u578b');
   if (!f) return { err: 'no-field' };
@@ -676,7 +700,7 @@ check('定制载具说明框带「说明内容」', customCarrier.label === '说
 
 /* 6c 现场：承重单位 kg/m²；无副标题 */
 const p15 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=site');
-await sleep(2000);
+await ready(p15);
 const siteUI = await p15.cdp.evaluate(`(function(){ ${HELPERS}
   var cap = fieldByLabel('\\u5730\\u9762\\u3001\\u697c\\u677f\\u627f\\u91cd');
   var sub = document.getElementById('sub');
@@ -691,7 +715,7 @@ check('模块页不再显示「原表 R…」备注', siteUI.subHidden === true,
 
 /* 6d 系统对接：ERP/MES 选项 */
 const p16 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=system');
-await sleep(2000);
+await ready(p16);
 const erpUI = await p16.cdp.evaluate(`(function(){ ${HELPERS}
   var f = fieldByLabel('ERP/MES');
   if (!f) return { err: 'no-field' };
@@ -706,7 +730,7 @@ check('ERP/MES 选项为 MES/ERP/MES和ERP/无/不确定/其它',
 
 /* 6e 流程：默认无中间点，「＋ 添加中间点」逐个加，最多 3 个 */
 const p17 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=flow');
-await sleep(2000);
+await ready(p17);
 const viasUI = await p17.cdp.evaluate(`(async function(){
   var flowCard = [].slice.call(document.querySelectorAll('.rep')).pop();
   if (!flowCard) return { err: 'no-flow-card' };
@@ -731,7 +755,7 @@ check('加到 3 个后按钮禁用', viasUI.maxed === true, String(viasUI.maxed)
 
 /* 6f 附件允许图片和视频 */
 const p18 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=media');
-await sleep(2000);
+await ready(p18);
 const acceptUI = await p18.cdp.evaluate(`(function(){
   var ins = [].slice.call(document.querySelectorAll('input[type=file]'));
   return { accepts: ins.map(function(i){ return i.accept; }) };
@@ -741,6 +765,7 @@ check('附件上传 accept 含 image 与 video',
   JSON.stringify(acceptUI.accepts));
 
 /* 6g 真上传一个视频文件：入库 + 预览为 <video> + 导出进「现场视频」目录 */
+await waitReady(p18.cdp, "document.querySelectorAll('input[type=file]').length > 0");
 const videoFlow = await p18.cdp.evaluate(`(async function(){
   var fake = new File([new Uint8Array(4096)], 'clip.mp4', { type: 'video/mp4' });
   var input = document.querySelectorAll('input[type=file]')[0];
@@ -766,7 +791,7 @@ check('视频预览用 <video> 播放器', videoFlow.hasVideoEl === true);
 
 /* 6h 导出包里视频进「现场视频/」目录（在加载了 export.js 的页面验证） */
 const p19 = await newTab(SITE + '/project.html?id=' + encodeURIComponent(pid));
-await sleep(2200);
+await ready(p19);
 const videoExport = await p19.cdp.evaluate(`(async function(){
   var p = await AGV_DB.getProject(${JSON.stringify('__PID__')});
   var media = await AGV_DB.listMedia(p.id);
@@ -782,7 +807,7 @@ p19.ws.close();
 
 /* 6i 新建方案：先项目名称(必填) → 客户名称(可空)，并自动带进基本信息 */
 const p20 = await newTab(SITE + '/index.html');
-await sleep(1800);
+await ready(p20);
 await p20.cdp.evaluate(`(function(){
   var seq = ['\u81ea\u52a8\u6d4b\u8bd5\u9879\u76ee', '\u81ea\u52a8\u6d4b\u8bd5\u5ba2\u6237'];
   window.prompt = function(){ return seq.length ? seq.shift() : null; };
@@ -792,7 +817,7 @@ await p20.cdp.evaluate(`(function(){
 await sleep(1800);
 
 const p21 = await newTab(SITE + '/index.html');
-await sleep(1800);
+await ready(p21);
 const autoFill = await p21.cdp.evaluate(`(async function(){
   var list = await AGV_DB.listProjects();
   var p = list.filter(function(x){ return x.name === '\u81ea\u52a8\u6d4b\u8bd5\u9879\u76ee'; })[0];
