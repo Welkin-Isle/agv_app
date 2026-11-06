@@ -602,26 +602,32 @@ const p12 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '
 await sleep(2000);
 const extraUI = await p12.cdp.evaluate(`(function(){ ${HELPERS}
   var a = fieldByLabel('\u73b0\u573a\u5b9e\u9645\u901a\u9053\u5bbd\u5ea6');
-  var lay = fieldByLabel('\u5806\u53e0\u5c42\u6570');
+  var reps = document.querySelectorAll('.rep');
+  var r0 = reps.length ? reps[0] : null;
   var sep = a ? a.querySelector('.mode-body .sep') : null;
   return {
     aisleLabel: a ? (a.querySelector('.flabel') || {}).textContent || '' : '',
     aisleSwitcher: !!(a && a.querySelector('.modes')),
     aisleSep: sep ? sep.textContent : '',
     aisleInputs: a ? a.querySelectorAll('.mode-body input').length : 0,
-    layerHasSelect: !!(lay && lay.querySelector('select')),
-    layerHasNumber: !!(lay && lay.querySelector('input[type=number]')),
-    layerUnit: lay ? (lay.querySelector('.unit') || {}).textContent || '' : ''
+    repCount: reps.length,
+    hasAdd: !!document.querySelector('.add-rep'),
+    layerHasSelect: !!(r0 && r0.querySelector('select')),
+    layerHasNumber: !!(r0 && r0.querySelector('input[type=number]')),
+    layerUnit: r0 ? (r0.querySelector('.unit') || {}).textContent || '' : '',
+    envIsChips: !!document.querySelector('#main .chips')
   };
 })()`, false);
 check('通道宽度标题已去掉「最小值」', (extraUI.aisleLabel || '').indexOf('最小值') < 0, String(extraUI.aisleLabel));
 check('通道宽度只有范围形态（两输入 + ~，无切换条）',
   extraUI.aisleSwitcher === false && extraUI.aisleInputs === 2 && extraUI.aisleSep === '~',
   JSON.stringify({ sw: extraUI.aisleSwitcher, sep: extraUI.aisleSep, n: extraUI.aisleInputs }));
-check('堆叠层数左侧是地点下拉', extraUI.layerHasSelect === true);
-check('堆叠层数右侧是数字输入且带「层」',
-  extraUI.layerHasNumber === true && extraUI.layerUnit === '层',
-  'unit=' + extraUI.layerUnit);
+check('堆叠层数已变成可添加的重复组',
+  extraUI.repCount >= 1 && extraUI.hasAdd === true, JSON.stringify({ reps: extraUI.repCount, add: extraUI.hasAdd }));
+check('堆叠组内是「地点下拉 + 层数输入」',
+  extraUI.layerHasSelect === true && extraUI.layerHasNumber === true && extraUI.layerUnit === '层',
+  JSON.stringify({ sel: extraUI.layerHasSelect, num: extraUI.layerHasNumber, unit: extraUI.layerUnit }));
+check('运行环境已改为按钮组（可多选）', extraUI.envIsChips === true, String(extraUI.envIsChips));
 
 [p11, p12].forEach(function (x) { try { x.ws.close(); } catch (e) {} });
 
@@ -632,6 +638,178 @@ check('上传按钮文案为「点击上传」', await p10.cdp.evaluate(
   `document.body.innerText.indexOf('点击上传') >= 0 && document.body.innerText.indexOf('点击选择') < 0`, false));
 
 [p6, p7, p8, p9, p10].forEach(function (x) { try { x.ws.close(); } catch (e) {} });
+
+/* ---------- 6. 2026-11-06 八条改动 ---------- */
+console.log('\n— 6) 本轮调整（基本信息顺序 / 定制载具说明 / 添加中间点 / 承重单位 / ERP选项 / 无副标题） —');
+
+/* 6a 基本信息：项目名称在前、客户名称在后、无「联系方式」 */
+const p13 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=basic');
+await sleep(2000);
+const basicUI = await p13.cdp.evaluate(`(function(){
+  var labels = [].slice.call(document.querySelectorAll('#main .flabel')).map(function(l){
+    return l.textContent.replace(/[*\\s]/g, '');
+  });
+  return { labels: labels.slice(0, 6), hasContact: document.body.innerText.indexOf('\\u8054\\u7cfb\\u65b9\\u5f0f') >= 0 };
+})()`, false);
+check('基本信息第 1 项是「项目名称」', (basicUI.labels[0] || '') === '项目名称', JSON.stringify(basicUI.labels));
+check('基本信息第 2 项是「客户名称」', (basicUI.labels[1] || '') === '客户名称', JSON.stringify(basicUI.labels));
+check('已删除「联系方式」输入框', basicUI.hasContact === false);
+
+/* 6b 载具类型选「定制载具」也弹说明框 */
+const p14 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=carrier');
+await sleep(2000);
+const customCarrier = await p14.cdp.evaluate(`(function(){ ${HELPERS}
+  var f = fieldByLabel('\\u8f7d\\u5177\\u7c7b\\u578b');
+  if (!f) return { err: 'no-field' };
+  var sel = f.querySelector('select');
+  sel.value = '\\u5b9a\\u5236\\u8f7d\\u5177';
+  sel.dispatchEvent(new Event('change'));
+  var box = f.querySelector('.other-box');
+  return {
+    has: !!box,
+    label: box ? (box.querySelector('.other-label') || {}).textContent : '',
+    selStillCustom: sel.value === '\\u5b9a\\u5236\\u8f7d\\u5177'
+  };
+})()`, false);
+check('选「定制载具」立刻弹出说明框', customCarrier.has === true, JSON.stringify(customCarrier));
+check('定制载具说明框带「说明内容」', customCarrier.label === '说明内容', String(customCarrier.label));
+
+/* 6c 现场：承重单位 kg/m²；无副标题 */
+const p15 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=site');
+await sleep(2000);
+const siteUI = await p15.cdp.evaluate(`(function(){ ${HELPERS}
+  var cap = fieldByLabel('\\u5730\\u9762\\u3001\\u697c\\u677f\\u627f\\u91cd');
+  var sub = document.getElementById('sub');
+  return {
+    unit: cap ? (cap.querySelector('.unit') || {}).textContent || '' : '',
+    subText: sub ? sub.textContent : 'x',
+    subHidden: sub ? (sub.style.display === 'none' || !sub.textContent) : true
+  };
+})()`, false);
+check('楼板承重单位已改为 kg/m²', siteUI.unit === 'kg/m²', String(siteUI.unit));
+check('模块页不再显示「原表 R…」备注', siteUI.subHidden === true, JSON.stringify(siteUI.subText));
+
+/* 6d 系统对接：ERP/MES 选项 */
+const p16 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=system');
+await sleep(2000);
+const erpUI = await p16.cdp.evaluate(`(function(){ ${HELPERS}
+  var f = fieldByLabel('ERP/MES');
+  if (!f) return { err: 'no-field' };
+  var sel = f.querySelector('select');
+  return { opts: sel ? [].slice.call(sel.options).map(function(o){ return o.textContent; }) : [] };
+})()`, false);
+check('ERP/MES 选项为 MES/ERP/MES和ERP/无/不确定/其它',
+  ['MES', 'ERP', 'MES和ERP', '无', '不确定'].every(function (x) {
+    return (erpUI.opts || []).indexOf(x) >= 0;
+  }) && (erpUI.opts || []).some(function (o) { return o.indexOf('其它') === 0; }),
+  (erpUI.opts || []).join(' | '));
+
+/* 6e 流程：默认无中间点，「＋ 添加中间点」逐个加，最多 3 个 */
+const p17 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=flow');
+await sleep(2000);
+const viasUI = await p17.cdp.evaluate(`(async function(){
+  var flowCard = [].slice.call(document.querySelectorAll('.rep')).pop();
+  if (!flowCard) return { err: 'no-flow-card' };
+  var before = flowCard.querySelectorAll('.via-row').length;
+  var add = flowCard.querySelector('.vias .add-rep');
+  if (!add) return { err: 'no-add-via' };
+  add.click();
+  await new Promise(function(r){ setTimeout(r, 200); });
+  var after1 = flowCard.querySelectorAll('.via-row').length;
+  flowCard.querySelector('.vias .add-rep').click();
+  await new Promise(function(r){ setTimeout(r, 200); });
+  flowCard.querySelector('.vias .add-rep').click();
+  await new Promise(function(r){ setTimeout(r, 200); });
+  var after3 = flowCard.querySelectorAll('.via-row').length;
+  var addNow = flowCard.querySelector('.vias .add-rep');
+  return { before: before, after1: after1, after3: after3, maxed: addNow ? addNow.disabled : null,
+           btnText: addNow ? addNow.textContent : '' };
+})()`);
+check('流程默认没有中间点', viasUI.before === 0, JSON.stringify(viasUI));
+check('点「＋ 添加中间点」可逐个添加', viasUI.after1 === 1 && viasUI.after3 === 3, JSON.stringify(viasUI));
+check('加到 3 个后按钮禁用', viasUI.maxed === true, String(viasUI.maxed));
+
+/* 6f 附件允许图片和视频 */
+const p18 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=media');
+await sleep(2000);
+const acceptUI = await p18.cdp.evaluate(`(function(){
+  var ins = [].slice.call(document.querySelectorAll('input[type=file]'));
+  return { accepts: ins.map(function(i){ return i.accept; }) };
+})()`, false);
+check('附件上传 accept 含 image 与 video',
+  (acceptUI.accepts || []).some(function (a) { return a.indexOf('image/*') >= 0 && a.indexOf('video/*') >= 0; }),
+  JSON.stringify(acceptUI.accepts));
+
+/* 6g 真上传一个视频文件：入库 + 预览为 <video> + 导出进「现场视频」目录 */
+const videoFlow = await p18.cdp.evaluate(`(async function(){
+  var fake = new File([new Uint8Array(4096)], 'clip.mp4', { type: 'video/mp4' });
+  var input = document.querySelectorAll('input[type=file]')[0];
+  if (!input) return { err: 'no-input' };
+  var dt = new DataTransfer(); dt.items.add(fake);
+  input.files = dt.files;
+  input.dispatchEvent(new Event('change'));
+  await new Promise(function(r){ setTimeout(r, 1500); });
+
+  var thumbs = [].slice.call(document.querySelectorAll('.att'));
+  var vidThumb = thumbs.filter(function(t){ return t.textContent.indexOf('\u89c6\u9891') >= 0; })[0];
+  if (!vidThumb) return { err: 'no-video-thumb', n: thumbs.length };
+  vidThumb.click();
+  await new Promise(function(r){ setTimeout(r, 400); });
+  var mask = document.getElementById('overlay');
+  var vid = mask ? mask.querySelector('video') : null;
+  var hasVideoEl = !!vid;
+  if (mask) mask.remove();
+  return { hasVideoEl: hasVideoEl, thumbCount: thumbs.length };
+})()`);
+check('视频可上传并出现在附件列表', !videoFlow.err, videoFlow.err || '');
+check('视频预览用 <video> 播放器', videoFlow.hasVideoEl === true);
+
+/* 6h 导出包里视频进「现场视频/」目录（在加载了 export.js 的页面验证） */
+const p19 = await newTab(SITE + '/project.html?id=' + encodeURIComponent(pid));
+await sleep(2200);
+const videoExport = await p19.cdp.evaluate(`(async function(){
+  var p = await AGV_DB.getProject(${JSON.stringify('__PID__')});
+  var media = await AGV_DB.listMedia(p.id);
+  var res = await AGV_EXPORT.build({ project: p, answers: p.answers || {}, media: media, includeVideos: true });
+  var ab = await res.files[0].blob.arrayBuffer();
+  var z = AGV_ZIP.readZip(ab);
+  var names = z.entries.map(function(e){ return e.name; });
+  return { all: names, videos: names.filter(function(n){ return n.indexOf('\u73b0\u573a\u89c6\u9891') === 0; }) };
+})()`.replace('__PID__', pid));
+check('导出包里有「现场视频/」目录',
+  (videoExport.videos || []).length > 0, JSON.stringify(videoExport.videos || videoExport.all));
+p19.ws.close();
+
+/* 6i 新建方案：先项目名称(必填) → 客户名称(可空)，并自动带进基本信息 */
+const p20 = await newTab(SITE + '/index.html');
+await sleep(1800);
+await p20.cdp.evaluate(`(function(){
+  var seq = ['\u81ea\u52a8\u6d4b\u8bd5\u9879\u76ee', '\u81ea\u52a8\u6d4b\u8bd5\u5ba2\u6237'];
+  window.prompt = function(){ return seq.length ? seq.shift() : null; };
+  document.getElementById('btn-new').click();
+  return true;
+})()`, false);
+await sleep(1800);
+
+const p21 = await newTab(SITE + '/index.html');
+await sleep(1800);
+const autoFill = await p21.cdp.evaluate(`(async function(){
+  var list = await AGV_DB.listProjects();
+  var p = list.filter(function(x){ return x.name === '\u81ea\u52a8\u6d4b\u8bd5\u9879\u76ee'; })[0];
+  if (!p) return { err: 'not-found', names: list.map(function(x){ return x.name; }) };
+  var b = p.answers.basic || {};
+  var out = { name: p.name, customer: p.customer,
+              basicProject: b.project_name, basicCustomer: b.customer_name, id: p.id };
+  await AGV_DB.deleteProject(p.id);   // 清理
+  return out;
+})()`);
+check('新建时项目名称生效', autoFill.name === '自动测试项目', JSON.stringify(autoFill.err || autoFill.name));
+check('新建时客户名称生效', autoFill.customer === '自动测试客户', String(autoFill.customer));
+check('项目名称已自动带进「基本信息」', autoFill.basicProject === '自动测试项目', String(autoFill.basicProject));
+check('客户名称已自动带进「基本信息」', autoFill.basicCustomer === '自动测试客户', String(autoFill.basicCustomer));
+p20.ws.close(); p21.ws.close();
+
+[p13, p14, p15, p16, p17, p18].forEach(function (x) { try { x.ws.close(); } catch (e) {} });
 
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(74));

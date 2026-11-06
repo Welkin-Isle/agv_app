@@ -237,13 +237,31 @@
       } else if (field.type === 'select') {
         var sel = document.createElement('select');
         var s = cur == null ? '' : String(cur);
-        var isOther = s.indexOf('其它（') === 0;
+
+        // 需要弹说明框的选项：'其它（请说明）' + 字段自定义的（如"定制载具"）
+        var triggers = [];
+        if (field.allowOther) triggers.push({ val: '__other', base: '其它' });
+        (field.otherTriggers || []).forEach(function (t) { triggers.push({ val: t, base: t }); });
+
+        // 判断当前值是否属于某个触发项，并取出括号里的说明
+        var trigger = null, noteText = '';
+        triggers.forEach(function (t) {
+          if (trigger) return;
+          if (t.val === '__other') {
+            if (s.indexOf('其它（') === 0) { trigger = t; noteText = s.slice(3, -1); }
+          } else {
+            if (s === t.base) { trigger = t; noteText = ''; }
+            else if (s.indexOf(t.base + '（') === 0) { trigger = t; noteText = s.slice(t.base.length + 1, -1); }
+          }
+        });
+
         var list = ['<option value="">请选择…</option>'];
         (field.options || []).forEach(function (o) {
-          list.push('<option value="' + esc(o) + '"' + (s === o ? ' selected' : '') + '>' + esc(o) + '</option>');
+          var isOn = (s === o) || (trigger && trigger.base === o);
+          list.push('<option value="' + esc(o) + '"' + (isOn ? ' selected' : '') + '>' + esc(o) + '</option>');
         });
         if (field.allowOther) {
-          list.push('<option value="__other"' + (isOther ? ' selected' : '') + '>其它（请说明）</option>');
+          list.push('<option value="__other"' + (trigger && trigger.val === '__other' ? ' selected' : '') + '>其它（请说明）</option>');
         }
         sel.innerHTML = list.join('');
         sel.addEventListener('change', function () {
@@ -251,8 +269,8 @@
         });
         box.appendChild(sel);
 
-        // 选中"其它" → 立刻弹说明输入框
-        if (field.allowOther && isOther) {
+        // 命中触发项 → 立刻弹说明输入框
+        if (trigger) {
           var ob = document.createElement('div');
           ob.className = 'other-box';
           var ol = document.createElement('div');
@@ -262,8 +280,12 @@
           var oi = document.createElement('input');
           oi.type = 'text';
           oi.placeholder = '请填写具体内容';
-          oi.value = s.slice(3, -1);
-          oi.addEventListener('input', function () { soft('其它（' + oi.value + '）'); });
+          oi.value = noteText;
+          oi.addEventListener('input', function () {
+            var base = trigger.base;
+            var v = oi.value;
+            soft(v ? (base + '（' + v + '）') : base);
+          });
           ob.appendChild(oi);
           box.appendChild(ob);
         }

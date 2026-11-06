@@ -128,7 +128,10 @@
     media.forEach(function (m) {
       if (!m.blob) return;
       if (m.zone === 'videos' && !includeVideos) return;
-      var dir = ZONE_DIR[m.zone] || '附件';
+      // 视频统一放「现场视频」目录（不论来自哪个上传区）
+      var isVideo = (m.mime || '').indexOf('video/') === 0;
+      if (isVideo && !includeVideos) return;
+      var dir = isVideo ? '现场视频' : (ZONE_DIR[m.zone] || '附件');
       counters[dir] = (counters[dir] || 0) + 1;
       counts[m.zone] = (counts[m.zone] || 0) + 1;
       var seq = pad2(counters[dir]);

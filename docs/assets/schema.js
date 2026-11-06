@@ -38,6 +38,7 @@
     { key: 'carrier_for_material', label: '对应物料', type: 'ref', ref: 'material',
       hint: '从已添加的物料里选' },
     { key: 'carrier_type', label: '载具类型', type: 'select', allowOther: true,
+      otherTriggers: ['定制载具'],
       options: ['田字托盘', '川字托盘', '料箱', '定制载具'] },
     { key: 'fork_entry', label: '进叉方向', type: 'select',
       options: ['短边进叉', '长边进叉'] },
@@ -73,9 +74,6 @@
   // 物流流程 D：起终点从"地点清单"下拉选；货物类型从 A/B/C 已填项下拉选
   var FLOW_FIELDS = [
     { key: 'route_start', label: '起始点', type: 'ref', ref: 'place', required: true },
-    { key: 'via1', label: '途经点 1（可选）', type: 'ref', ref: 'place' },
-    { key: 'via2', label: '途经点 2（可选）', type: 'ref', ref: 'place' },
-    { key: 'via3', label: '途经点 3（可选）', type: 'ref', ref: 'place' },
     { key: 'route_end', label: '终点', type: 'ref', ref: 'place', required: true },
     { key: 'cargo', label: '货物类型', type: 'select', optionsFrom: 'abc',
       hint: '可选 A（物料）、B（载具）、C（组合）里已填的任何一项' },
@@ -94,13 +92,12 @@
       id: 'basic', no: 1, title: '基本信息', sub: '原表 R2~R9',
       groups: [{
         id: 'basic', title: '', fields: [
-          { key: 'customer_name', label: '单位名称', type: 'text', required: true },
           { key: 'project_name', label: '项目名称', type: 'text', required: true },
+          { key: 'customer_name', label: '客户名称', type: 'text' },
           { key: 'site_address', label: '项目实施地址', type: 'text', required: true,
             hint: '请填写国家/城市，用于判断适用地区标准' },
           { key: 'contact', label: '联系人', type: 'text' },
           { key: 'position', label: '职位', type: 'text' },
-          { key: 'contact_info', label: '联系方式', type: 'text', placeholder: '电话 / 邮箱' },
           { key: 'kickoff', label: '项目启动时间', type: 'text', placeholder: '如 2027年3月' },
           { key: 'purchase_mode', label: '采购形式', type: 'text', placeholder: '如 公开招标 / 议标' }
         ]
@@ -161,7 +158,7 @@
             hint: '只填一侧也可以：只填最小 → ≥最小；只填最大 → ≤最大' },
           { key: 'building_height', label: '厂房限高', unit: 'm', type: 'number', modes: ['single'] },
           { key: 'slope', label: '地面坡度', unit: '°', type: 'number', modes: ['le'] },
-          { key: 'floor_capacity', label: '地面、楼板承重', unit: 't/㎡', type: 'number', modes: ['le'] },
+          { key: 'floor_capacity', label: '地面、楼板承重', unit: 'kg/m²', type: 'number', modes: ['le'] },
           { key: 'floor_condition', label: '地面综合情况', type: 'select', allowOther: true,
             options: ['良好（平整、无裂缝）', '一般', '较差（起伏/裂缝/油污）', '不确定'],
             hint: '目测地面是否平整、有无缝隙（>4cm 需注意）' },
@@ -186,7 +183,8 @@
       groups: [{
         id: 'system', title: '', fields: [
           { key: 'erp', label: 'ERP/MES 系统', type: 'select', allowOther: true,
-            options: ['有', '无', '不确定'], hint: '如有请注明系统名称' },
+            options: ['MES', 'ERP', 'MES和ERP', '无', '不确定'],
+            hint: '按客户实际在用的系统选择；其它请说明' },
           { key: 'wms', label: 'WMS 系统', type: 'select', allowOther: true,
             options: ['有', '无', '不确定'] },
           { key: 'site_devices', label: '现场设备', type: 'textarea',
@@ -208,13 +206,19 @@
           { key: 'aisle_width_mm', label: '现场实际通道宽度', unit: 'mm', type: 'number',
             modes: ['range'], required: true,
             hint: '直角堆垛通道最窄处；只填一侧也行（只填最小 → ≥最小，只填最大 → ≤最大）' },
-          { key: 'site_environment', label: '运行环境', type: 'select', required: true,
+          { key: 'site_environment', label: '运行环境', type: 'multi', required: true,
             options: ['室内', '室外', '冷库'],
-            hint: '月台/雨棚段按室内计' },
-          { key: 'stacking_layers', label: '堆叠层数 / 货架层数', type: 'place_layers',
-            hint: '先选在哪个地点堆叠，再填层数' }
+            hint: '可多选；月台/雨棚段按室内计' }
         ]
-      }]
+      }],
+      repeat: {
+        id: 'stacking', prefix: '', label: '堆叠地点', min: 1,
+        note: '每个地点填一组：先在「物流流程」里登记地点，这里就能下拉选',
+        fields: [
+          { key: 'place', label: '地点', type: 'ref', ref: 'place' },
+          { key: 'layers', label: '堆叠层数 / 货架层数', unit: '层', type: 'number', modes: ['single'] }
+        ]
+      }
     },
     {
       id: 'other', no: 10, title: '其他需求', sub: '原表 R82 之后',
@@ -229,10 +233,10 @@
 
   /* ---------------- 附件上传区（已取消"现场视频"录制） ---------------- */
   var UPLOAD_ZONES = [
-    { id: 'site_photos', title: '现场照片', accept: 'image/*',
+    { id: 'site_photos', title: '现场照片 / 视频', accept: 'image/*,video/*',
       desc: '仓库整体、地面状况、门洞、接驳处、运行通道等', max: 30 },
-    { id: 'material_photos', title: '物料 / 载具照片', accept: 'image/*',
-      desc: '各类物料与托盘/料箱的实物照片，便于确认尺寸', max: 20 },
+    { id: 'material_photos', title: '物料 / 载具照片 / 视频', accept: 'image/*,video/*',
+      desc: '各类物料与托盘/料箱的实物照片或视频，便于确认尺寸', max: 20 },
     { id: 'drawings', title: '平面图 / CAD 图纸', accept: 'image/*,.pdf,.dwg,.dxf,.zip,.rar',
       desc: '厂区平面布局图、物流动线图；无 CAD 可拍图纸照片', max: 10 }
   ];

@@ -55,14 +55,17 @@
   };
 
   var EXTRA_LABELS = {
-    aisle_width_mm: '选型补充 · 现场实际通道宽度最小值',
-    site_environment: '选型补充 · 运行环境',
-    stacking_layers: '选型补充 · 堆叠层数/货架层数'
+    aisle_width_mm: '选型补充 · 现场实际通道宽度',
+    site_environment: '选型补充 · 运行环境'
   };
 
   /* ---------------- 值格式化 ---------------- */
   function isNum(x) { return x !== null && x !== undefined && x !== '' && !isNaN(Number(x)); }
   function str(v) { return v === null || v === undefined ? '' : String(v); }
+  function codeOf(label) {
+    var m = String(label || '').match(/^\S+/);
+    return m ? m[0] : String(label || '');
+  }
 
   /** 返回 {text, num}；num 非 null 时用数字型写入 */
   function fmtAnswer(field, val) {
@@ -278,6 +281,38 @@
         var code = str(p.code).trim(), nm = str(p.name).trim();
         ext.push({ label: code || '(无代号)', payload: { text: nm || '' } });
       });
+    }
+    // 堆叠层数（可能是多个地点）
+    var stacking = Array.isArray(answers.stacking) ? answers.stacking : [];
+    var stOk = stacking.filter(function (x) {
+      return x && ((x.place && String(x.place).trim()) || isNum(x.layers));
+    });
+    if (stOk.length) {
+      ext.push({ head: '【堆叠层数 / 货架层数】' });
+      stOk.forEach(function (x) {
+        var a = x.place ? String(x.place) : '';
+        var pf = fmtAnswer(fieldDef['stacking.layers'], x.layers);
+        var b = pf ? (pf.text || (isNum(pf.num) ? pf.num + ' 层' : '')) : '';
+        if (b && isNum(pf && pf.num)) b = pf.num + ' 层';
+        ext.push({ label: a || '(未选地点)', payload: { text: b } });
+      });
+    }
+    // 流程路线（含中间点）——原表只有取货点/放货点两格
+    var flows2 = Array.isArray(answers.flow) ? answers.flow : [];
+    var routes = [];
+    flows2.forEach(function (f, i) {
+      if (!f) return;
+      var parts = [];
+      if (f.route_start) parts.push('起始点【' + codeOf(f.route_start) + '】');
+      (Array.isArray(f.vias) ? f.vias : []).forEach(function (v, j) {
+        if (v) parts.push('中间点' + (j + 1) + '【' + codeOf(v) + '】');
+      });
+      if (f.route_end) parts.push('终点【' + codeOf(f.route_end) + '】');
+      if (parts.length) routes.push({ label: '流程 D' + (i + 1) + ' 路线', text: parts.join(' → ') });
+    });
+    if (routes.length) {
+      ext.push({ head: '【流程路线】（含中间点）' });
+      routes.forEach(function (r) { ext.push({ label: r.label, payload: { text: r.text } }); });
     }
     var other = (answers.other || {}).other_requirements;
     if (other && String(other).trim()) {

@@ -80,7 +80,7 @@ const answers = {
     { code: 'F1', name: '缓存区' }
   ],
   flow: [
-    { route_start: 'D1 原料库', via1: 'F1 缓存区', route_end: 'E1 包装线', cargo: 'A1（箱装）', flow_rate: { m: 'single', v: 45 } },
+    { route_start: 'D1 原料库', vias: ['F1 缓存区'], route_end: 'E1 包装线', cargo: 'A1（箱装）', flow_rate: { m: 'single', v: 45 } },
     { route_start: 'E1 包装线', route_end: 'F1 缓存区', cargo: 'C1（自动码盘）', flow_rate: { m: 'single', v: 30 } }
   ],
   process: { process_text: '原料入库 → 拆包 → 码盘 → 货架存储 → 按订单拣选 → 出货装车。' },
@@ -95,14 +95,17 @@ const answers = {
   },
   work: { existing_equipment: '现有叉车 4 台', driver_count: { m: 'single', v: 6 }, work_time: '两班倒，每班 10 小时' },
   system: {
-    erp: '有（SAP）', wms: '有', site_devices: '产线接驳位 4 处，电动门 2 樘',
+    erp: 'MES和ERP', wms: '有', site_devices: '产线接驳位 4 处，电动门 2 樘',
     trigger_by_system: '是', trigger_mode: '系统联机自动运行', trigger_place: '集中区域'
   },
   extra: {
     aisle_width_mm: { m: 'range', a: 2000, b: null },
-    site_environment: '室内',
-    stacking_layers: { m: 'place_layers', place: 'F1 缓存区', n: 3 }
+    site_environment: ['室内', '冷库']
   },
+  stacking: [
+    { place: 'F1 缓存区', layers: { m: 'single', v: 3 } },
+    { place: 'E1 包装线', layers: { m: 'single', v: 2 } }
+  ],
   other: { other_requirements: '客户要求三向堆垛式；如运营需要也可接受三向+前移式。现场电压 380V/60Hz。' }
 };
 
@@ -176,7 +179,7 @@ for k,(r,c) in {"empty.carrier_fork":(26,6), "empty.combo2_cargo_len":(46,6),
     v = ws.cell(row=r, column=c).value
     res["cells"][k] = None if v is None else str(v)[:40]
 # 扩展区：R84 起
-for r in range(84, min(ws.max_row, 110) + 1):
+for r in range(84, ws.max_row + 1):
     c3 = ws.cell(row=r, column=3).value
     c6 = ws.cell(row=r, column=6).value
     if c3 or c6:
@@ -232,7 +235,7 @@ eq('site.height', '9');
 eq('site.capacity', '≤ 2');
 eq('site.slope', '≤ 0');
 eq('work.driver', '6');
-eq('sys.erp', 'SAP');
+eq('sys.erp', 'MES和ERP');
 eq('sys.trigger_mode', '系统联机自动运行');
 eq('process', '原料入库');
 
@@ -250,8 +253,10 @@ Object.entries(R.types).forEach(([k, t]) => {
 console.log('\n— 5) 扩展区（超出原表容量的部分 + 选型补充 + 其他需求） —');
 const extText = R.ext.map(x => (x[1] || '') + '=' + (x[2] || '')).join(' | ');
 console.log('     R84 起共 ' + R.ext.length + ' 行');
-['物料 A3', '载具 B2', '组合 C3', '现场实际通道宽度', '运行环境', '堆叠层数', '其他需求', '三向堆垛式',
-   '地点清单', 'D1', '原料库', '3 层', '≥ 2000']
+['物料 A3', '载具 B2', '组合 C3', '现场实际通道宽度', '运行环境', '其他需求', '三向堆垛式',
+   '地点清单', 'D1', '原料库', '≥ 2000',
+   '堆叠层数', '3 层', '2 层', '流程路线', '中间点1【F1】',
+   '室内、冷库']
   .forEach(k => check('扩展区含「' + k + '」', extText.includes(k)));
 
 console.log('\n' + '='.repeat(72));

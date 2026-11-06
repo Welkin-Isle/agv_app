@@ -84,9 +84,10 @@ const pid = await seed.evaluate(`(async () => {
       pallet_length:{m:'single',v:1000}, pallet_width:{m:'single',v:1200},
       cargo_height:{m:'single',v:1500}, pallet_height:{m:'single',v:150} } ],
     place: [ { code:'D1', name:'原料库' }, { code:'E1', name:'包装线' }, { code:'F1', name:'缓存区' } ],
-    flow: [ { route_start:'D1 原料库', via1:'F1 缓存区', route_end:'E1 包装线', cargo:'A1（箱装）', flow_rate:{m:'single',v:45} } ],
+    flow: [ { route_start:'D1 原料库', vias:['F1 缓存区'], route_end:'E1 包装线', cargo:'A1（箱装）', flow_rate:{m:'single',v:45} } ],
     site: { temperature:{m:'range',a:5,b:30}, building_height:{m:'single',v:9}, slope:{m:'le',v:2}, floor_capacity:{m:'le',v:3}, floor_condition:'良好（平整、无裂缝）', glare:'无', dust:'无' },
-    extra: { aisle_width_mm:{m:'range',a:2000,b:null}, site_environment:'室内', stacking_layers:{m:'place_layers',place:'F1 缓存区',n:3} },
+    extra: { aisle_width_mm:{m:'range',a:2000,b:null}, site_environment:['室内'] },
+    stacking: [ { place:'F1 缓存区', layers:{m:'single',v:3} } ],
     other: { other_requirements:'客户要求三向堆垛式；如运营需要也可接受三向+前移式。' }
   };
   const p = AGV_DB.newProject({ customer: '삼양식품', name: '원주공장 코드 파렛타이징', answers: answers });
@@ -115,6 +116,11 @@ const c3 = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=
 await sleep(2200);
 await shot(c3, 'shot-module.png');
 
+/* ---------- 4a. 基本信息（新顺序） ---------- */
+const c3a = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=basic');
+await sleep(2000);
+await shot(c3a, 'shot-basic.png');
+
 /* ---------- 4b. 流程页（地点+路线） ---------- */
 const c3b = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=flow');
 await sleep(2200);
@@ -135,7 +141,7 @@ const c5 = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=
 await sleep(2200);
 await shot(c5, 'shot-media.png');
 
-[c1, c2, c3, c3b, c3c, c4, c5, seed].forEach(c => { try { c.ws.close(); } catch (e) { } });
+[c1, c2, c3, c3a, c3b, c3c, c4, c5, seed].forEach(c => { try { c.ws.close(); } catch (e) { } });
 try { proc.kill(); } catch (e) { }
 await sleep(700);
 try { fs.rmSync(prof, { recursive: true, force: true }); } catch (e) { }

@@ -128,12 +128,23 @@
 
   /* ---------------- 新建 ---------------- */
   $('btn-new').onclick = async function () {
-    var customer = prompt('客户名称（例：삼양식품 / SOSTRA）');
-    if (customer === null) return;
-    customer = (customer || '').trim();
-    if (!customer) { alert('请填写客户名称'); return; }
-    var project = prompt('项目名称（可留空）') || '';
-    var p = DB.newProject({ customer: customer, name: project.trim() });
+    // 先问项目名称（必填），再问客户名称（可留空）
+    var proj = prompt('项目名称（必填）');
+    if (proj === null) return;
+    proj = (proj || '').trim();
+    if (!proj) { alert('项目名称必填，请重新新建'); return; }
+
+    var cust = prompt('客户名称（可留空）');
+    if (cust === null) cust = '';
+    cust = (cust || '').trim();
+
+    var p = DB.newProject({ name: proj, customer: cust });
+    // 自动带进「基本信息」，进模块时已填好
+    p.answers = p.answers || {};
+    p.answers.basic = p.answers.basic || {};
+    p.answers.basic.project_name = proj;
+    if (cust) p.answers.basic.customer_name = cust;
+
     await DB.putProject(p);
     location.href = 'project.html?id=' + encodeURIComponent(p.id);
   };

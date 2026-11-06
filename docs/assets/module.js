@@ -125,7 +125,9 @@
 
     var st = state.step;
     $('ttl').textContent = st.no + '. ' + st.title;
-    $('sub').textContent = st.sub || '';
+    // 按要求不再显示"原表 R2~R9"这类备注
+    var subEl = $('sub');
+    if (subEl) { subEl.textContent = ''; subEl.style.display = 'none'; }
     renderRefBtn(st);
 
     if (st.id === 'extra') {
@@ -349,10 +351,14 @@
     }
 
     r.fields.forEach(function (f) {
+      // 终点之前插入"中间点"区块（默认没有，按需添加，最多 3 个）
+      if (r.id === 'flow' && f.key === 'route_end') {
+        body.appendChild(viasBlock(item, routeLine));
+      }
       body.appendChild(C.renderField(resolveField(f), item[f.key], function (v) {
         item[f.key] = v;
         touch();
-        if (routeLine && (f.key === 'route_start' || f.key === 'route_end' || /^via/.test(f.key))) {
+        if (routeLine && (f.key === 'route_start' || f.key === 'route_end')) {
           routeLine.textContent = routeText(item);
         }
       }, CTX));
@@ -371,11 +377,80 @@
     return box;
   }
 
+  /* 中间点：默认没有，点「＋ 添加中间点」逐个加，最多 3 个 */
+  function viasBlock(item, routeLine) {
+    var wrap = document.createElement('div');
+    wrap.className = 'vias';
+
+    function update() { if (routeLine) routeLine.textContent = routeText(item); }
+
+    function redraw() {
+      wrap.innerHTML = '';
+      if (!Array.isArray(item.vias)) item.vias = [];
+      var opts = placeOptions();
+
+      item.vias.forEach(function (v, i) {
+        var row = document.createElement('div');
+        row.className = 'via-row';
+
+        var lb = document.createElement('div');
+        lb.className = 'via-label';
+        lb.textContent = '中间点 ' + (i + 1);
+        row.appendChild(lb);
+
+        var sel = document.createElement('select');
+        var html = ['<option value="">请选择地点…</option>'];
+        var found = false;
+        opts.forEach(function (o) {
+          if (o.value === v) found = true;
+          html.push('<option value="' + esc(o.value) + '"' + (o.value === v ? ' selected' : '') + '>' + esc(o.label) + '</option>');
+        });
+        if (v && !found) html.push('<option value="' + esc(v) + '" selected>' + esc(v) + '（已不存在）</option>');
+        sel.innerHTML = html.join('');
+        sel.addEventListener('change', function () {
+          item.vias[i] = sel.value; touch(); update();
+        });
+        row.appendChild(sel);
+
+        var del = document.createElement('button');
+        del.className = 'rep-del';
+        del.type = 'button';
+        del.textContent = '删除';
+        del.onclick = function () {
+          item.vias.splice(i, 1); touch(); redraw(); update();
+        };
+        row.appendChild(del);
+        wrap.appendChild(row);
+      });
+
+      var add = document.createElement('button');
+      add.className = 'add-rep';
+      add.type = 'button';
+      add.textContent = '＋ 添加中间点';
+      add.disabled = item.vias.length >= 3;
+      if (add.disabled) add.style.opacity = '.45';
+      add.onclick = function () {
+        if (item.vias.length >= 3) return;
+        item.vias.push(''); touch(); redraw(); update();
+      };
+      wrap.appendChild(add);
+
+      if (!opts.length) {
+        var tip = document.createElement('div');
+        tip.className = 'fhint';
+        tip.textContent = '还没有地点，请先在上方「地点清单」里添加';
+        wrap.appendChild(tip);
+      }
+    }
+    redraw();
+    return wrap;
+  }
+
   function routeText(item) {
     var parts = [];
     if (item.route_start) parts.push('起始点【' + codeOf(item.route_start) + '】');
-    ['via1', 'via2', 'via3'].forEach(function (k, i) {
-      if (item[k]) parts.push('中间点' + (i + 1) + '【' + codeOf(item[k]) + '】');
+    (Array.isArray(item.vias) ? item.vias : []).forEach(function (v, i) {
+      if (v) parts.push('中间点' + (i + 1) + '【' + codeOf(v) + '】');
     });
     if (item.route_end) parts.push('终点【' + codeOf(item.route_end) + '】');
     return parts.length ? parts.join(' → ') : '选择起终点后，这里会显示路线';
@@ -437,6 +512,13 @@
             projectId: pid, zone: zone, kind: 'image', name: c.name, mime: c.mime,
             size: c.size, blob: c.blob, thumb: c.thumb, w: c.w, h: c.h
           });
+        } else if (f.type.indexOf('video/') === 0) {
+          var warn = M.checkVideo(f);
+          if (warn && !confirm(warn + '\n\n仍要添加吗？')) continue;
+          await DB.addMedia({
+            projectId: pid, zone: zone, kind: 'video', name: f.name,
+            mime: f.type || 'video/mp4', size: f.size, blob: f
+          });
         } else {
           await DB.addMedia({
             projectId: pid, zone: zone, kind: 'file', name: f.name,
@@ -470,6 +552,11 @@
         var img = document.createElement('img');
         img.src = URL.createObjectURL(m.thumb);
         el.appendChild(img);
+      } else if ((m.mime || '').indexOf('video/') === 0) {
+        var vex = document.createElement('div');
+        vex.className = 'ext';
+        vex.textContent = '▶ 视频';
+        el.appendChild(vex);
       } else {
         var d = document.createElement('div');
         d.className = 'ext';
@@ -496,6 +583,14 @@
       img.src = url;
       img.alt = m.name;
       body.appendChild(img);
+    } else if ((m.mime || '').indexOf('video/') === 0) {
+      var vid = document.createElement('video');
+      vid.src = url;
+      vid.controls = true;
+      vid.playsInline = true;
+      vid.style.width = '100%';
+      vid.style.borderRadius = '10px';
+      body.appendChild(vid);
     } else {
       var f = document.createElement('div');
       f.className = 'ov-file';
