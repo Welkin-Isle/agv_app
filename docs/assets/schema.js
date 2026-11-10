@@ -28,7 +28,8 @@
     // 尺寸用文本输入：可以写 "600×400×300"、"600*400*300" 或 "约 600x400"
     { key: 'pack_size', label: '尺寸（mm）', type: 'text',
       placeholder: '长×宽×高，如 600×400×300',
-      hint: '可写 600×400×300 或 600*400*300；如存在不同尺寸物料，请下滑添加' },
+      hint: '可写 600×400×300 或 600*400*300；如存在不同尺寸物料，请下滑添加',
+      warn: { test: /[×xX*]/, msg: '看起来只写了一个数字，建议写全「长×宽×高」，如 600×400×300（不影响保存）' } },
     { key: 'material_weight', label: '重量', unit: 'kg', type: 'number', modes: ['single', 'range'] },
     { key: 'info_record', label: '信息记录形式', type: 'multi',
       options: ['一维码', '二维码', '电子标签（RFID）', '无'] }

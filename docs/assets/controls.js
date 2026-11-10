@@ -342,8 +342,29 @@
         inp.type = 'text';
         inp.placeholder = field.placeholder || '';
         inp.value = textVal(cur);
-        inp.addEventListener('input', function () { soft(inp.value); });
+
+        // 软提醒：只是提示，不阻止保存、不拦截输入
+        var warnEl = null;
+        function updateWarn(v) {
+          if (!field.warn) return;
+          var bad = !!v && !field.warn.test.test(v);
+          if (bad && !warnEl) {
+            warnEl = document.createElement('div');
+            warnEl.className = 'fwarn';
+            box.appendChild(warnEl);
+          }
+          if (warnEl) {
+            warnEl.style.display = bad ? '' : 'none';
+            warnEl.textContent = bad ? (field.warn.msg || '') : '';
+          }
+        }
+
+        inp.addEventListener('input', function () {
+          soft(inp.value);
+          updateWarn(inp.value);
+        });
         box.appendChild(inp);
+        updateWarn(inp.value);
       }
 
       if (field.hint) {

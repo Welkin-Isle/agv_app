@@ -602,6 +602,48 @@ check('尺寸输入框是文本类型（不是数字）', sizeField.inputType ==
 check('尺寸能输入「600×400×300」这类写法',
   sizeField.typed === '600×400×300', JSON.stringify(sizeField.typed));
 
+/* 尺寸软提醒：只写一个数字时出现黄色提示，但不会清空输入、不阻止保存 */
+const sizeWarn = await p6.cdp.evaluate(`(function(){ ${HELPERS}
+  var f = fieldByLabel('\u5c3a\u5bf8');
+  if (!f) return { err: 'no-field' };
+  var inp = f.querySelector('input');
+
+  // 1) 只写一个数字
+  inp.value = '600';
+  inp.dispatchEvent(new Event('input'));
+  var w1 = f.querySelector('.fwarn');
+  var s1 = w1 ? getComputedStyle(w1).display : 'none';
+  var msg1 = w1 ? w1.textContent : '';   // 必须此刻取，后面会被清空
+  var kept1 = inp.value;
+
+  // 2) 写全三维
+  inp.value = '600\u00d7400\u00d7300';
+  inp.dispatchEvent(new Event('input'));
+  var w2 = f.querySelector('.fwarn');
+  var s2 = w2 ? getComputedStyle(w2).display : 'none';
+
+  // 3) 用 * 分隔也算合法
+  inp.value = '600*400*300';
+  inp.dispatchEvent(new Event('input'));
+  var w3 = f.querySelector('.fwarn');
+  var s3 = w3 ? getComputedStyle(w3).display : 'none';
+
+  return {
+    warnShown: s1 !== 'none',
+    msg: msg1,
+    valueKept: kept1,
+    hiddenWhenFull: s2 === 'none',
+    hiddenWhenStar: s3 === 'none'
+  };
+})()`, false);
+check('尺寸只写一个数字时出现软提醒', sizeWarn.warnShown === true, JSON.stringify(sizeWarn));
+check('提醒文案说明写法且注明不影响保存',
+  (sizeWarn.msg || '').indexOf('长×宽×高') >= 0 && (sizeWarn.msg || '').indexOf('不影响保存') >= 0,
+  String(sizeWarn.msg));
+check('提醒不阻止输入（值仍在）', sizeWarn.valueKept === '600', JSON.stringify(sizeWarn.valueKept));
+check('写全三维后提醒消失', sizeWarn.hiddenWhenFull === true);
+check('用 * 分隔也算合法，提醒消失', sizeWarn.hiddenWhenStar === true);
+
 /* 旧数据兼容：以前存的是 {m:'single',v:600}，不能显示成 [object Object] */
 const legacyRender = await p6.cdp.evaluate(`(function(){
   var f = AGV_CTRL.renderField({ key: 'x', label: '\u65e7\u5c3a\u5bf8', type: 'text' },

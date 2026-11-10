@@ -120,6 +120,21 @@ await shot(c3, 'shot-module.png');
 const c3m = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=material');
 await sleep(2000);
 await shot(c3m, 'shot-material.png');
+// 演示软提醒：把尺寸改成只写一个数字
+await c3m.evaluate(`(function(){
+  var labels = [].slice.call(document.querySelectorAll('.field'));
+  var f = labels.filter(function(x){
+    var l = x.querySelector('.flabel');
+    return l && l.textContent.indexOf('\u5c3a\u5bf8') === 0;
+  })[0];
+  if (!f) return false;
+  var i = f.querySelector('input');
+  i.value = '600';
+  i.dispatchEvent(new Event('input'));
+  return true;
+})()`);
+await sleep(500);
+await shot(c3m, 'shot-material-warn.png');
 
 /* ---------- 4a. 基本信息（新顺序） ---------- */
 const c3a = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=basic');
