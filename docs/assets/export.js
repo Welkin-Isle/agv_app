@@ -69,7 +69,6 @@
   var ZONE_DIR = {
     site_photos: '现场照片',
     material_photos: '物料载具照片',
-    drawings: '图纸',
     videos: '现场视频',
     temp: '快速记录'
   };
@@ -88,7 +87,6 @@
     L.push('  · 现场照片 ' + (counts.site_photos || 0) + ' 个');
     L.push('  · 物料载具照片 ' + (counts.material_photos || 0) + ' 个');
     L.push('  · 现场视频 ' + (counts.videos || 0) + ' 个');
-    L.push('  · 图纸 ' + (counts.drawings || 0) + ' 个');
     L.push('  · answers.json —— 原始答案，可用于重新生成表格或导入选型工具');
     L.push('');
     L.push('说明：');

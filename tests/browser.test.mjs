@@ -834,6 +834,39 @@ check('项目名称已自动带进「基本信息」', autoFill.basicProject ===
 check('客户名称已自动带进「基本信息」', autoFill.basicCustomer === '自动测试客户', String(autoFill.basicCustomer));
 p20.ws.close(); p21.ws.close();
 
+/* 6j 已删除「平面图/CAD 图纸」上传区 + 「快速记录」按钮与提示 */
+const mediaZones = await p18.cdp.evaluate(`(function(){
+  var cards = [].slice.call(document.querySelectorAll('#main .card .group-title')).map(function(g){
+    return g.textContent.trim();
+  });
+  return {
+    titles: cards,
+    fileInputs: document.querySelectorAll('input[type=file]').length,
+    hasCad: document.body.innerText.indexOf('CAD') >= 0,
+    bodyText: document.body.innerText
+  };
+})()`, false);
+check('附件只剩 2 个上传区', mediaZones.fileInputs === 2, String(mediaZones.fileInputs));
+check('已删除「平面图 / CAD 图纸」上传区', mediaZones.hasCad === false,
+  JSON.stringify(mediaZones.titles));
+
+const p22 = await newTab(SITE + '/project.html?id=' + encodeURIComponent(pid));
+await ready(p22);
+const workbench = await p22.cdp.evaluate(`(function(){
+  var t = document.body.innerText;
+  return {
+    hasQuickBtn: !!document.getElementById('btn-quick'),
+    hasQuickTip: t.indexOf('\u5feb\u901f\u8bb0\u5f55') >= 0,
+    hasExport: !!document.getElementById('btn-export'),
+    footBtns: [].slice.call(document.querySelectorAll('.footbar .btn')).map(function(b){ return b.id; })
+  };
+})()`, false);
+check('工作台已无「快速记录」按钮', workbench.hasQuickBtn === false && workbench.hasQuickTip === false,
+  JSON.stringify(workbench.footBtns));
+check('工作台底部只剩「导出」', (workbench.footBtns || []).join(',') === 'btn-export',
+  JSON.stringify(workbench.footBtns));
+p22.ws.close();
+
 [p13, p14, p15, p16, p17, p18].forEach(function (x) { try { x.ws.close(); } catch (e) {} });
 
 /* ---------- 汇总 ---------- */

@@ -459,7 +459,8 @@
   /* ============================ 附件模块 ============================ */
   function renderMedia() {
     $('ttl').textContent = '附件';
-    $('sub').textContent = '照片 / 图纸，导出时一并打包';
+    var subEl2 = $('sub');
+    if (subEl2) { subEl2.textContent = '照片 / 视频，导出时一并打包'; subEl2.style.display = ''; }
     renderRefBtn({});
     var main = $('main');
     main.innerHTML = '';

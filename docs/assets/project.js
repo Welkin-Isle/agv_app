@@ -125,12 +125,6 @@
     grid.appendChild(modCard('media', '附件', 'media', mediaStat()));
     gridWrap.appendChild(grid);
     main.appendChild(gridWrap);
-
-    // 提示
-    var tip = document.createElement('div');
-    tip.className = 'notice info';
-    tip.innerHTML = '提示：现场来不及归类时，用底部「📷 快速记录」先拍照，之后在「附件」里改备注即可。';
-    main.appendChild(tip);
   }
 
   function modCard(id, title, iconId, stat) {
@@ -147,37 +141,6 @@
       '<div class="st"><span class="dot"></span>' + label + '</div>';
     return el;
   }
-
-  /* ---------------- 快速记录 ---------------- */
-  $('btn-quick').onclick = function () {
-    var input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-    input.multiple = true;
-    input.style.display = 'none';
-    document.body.appendChild(input);
-    input.onchange = async function () {
-      var files = Array.from(input.files || []);
-      input.remove();
-      if (!files.length) return;
-      var n = 0;
-      for (var i = 0; i < files.length; i++) {
-        try {
-          var c = await M.compressImage(files[i]);
-          await DB.addMedia({
-            projectId: pid, zone: 'temp', kind: 'image',
-            name: c.name, mime: c.mime, size: c.size,
-            blob: c.blob, thumb: c.thumb, w: c.w, h: c.h
-          });
-          n++;
-        } catch (e) { alert('照片处理失败：' + e.message); }
-      }
-      await reload();
-      if (n) toast('已记录 ' + n + ' 张，稍后可在「附件」里补充说明');
-    };
-    input.click();
-  };
 
   function toast(msg) {
     var d = document.createElement('div');
