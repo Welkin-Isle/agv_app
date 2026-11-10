@@ -237,6 +237,9 @@
       desc: '仓库整体、地面状况、门洞、接驳处、运行通道等', max: 30 },
     { id: 'material_photos', title: '物料 / 载具照片 / 视频', accept: 'image/*,video/*',
       desc: '各类物料与托盘/料箱的实物照片或视频，便于确认尺寸', max: 20 },
+    { id: 'docs', title: '其他文件', max: 20,
+      accept: '.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar,.7z,.dwg,.dxf',
+      desc: 'PDF / Word / Excel / PPT / 压缩包 / CAD 等资料（原样保存，不压缩）' }
   ];
 
   g.AGV_SCHEMA = {

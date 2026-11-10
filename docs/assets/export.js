@@ -70,6 +70,7 @@
     site_photos: '现场照片',
     material_photos: '物料载具照片',
     videos: '现场视频',
+    docs: '其他文件',
     temp: '快速记录'
   };
 
@@ -87,6 +88,7 @@
     L.push('  · 现场照片 ' + (counts.site_photos || 0) + ' 个');
     L.push('  · 物料载具照片 ' + (counts.material_photos || 0) + ' 个');
     L.push('  · 现场视频 ' + (counts.videos || 0) + ' 个');
+    L.push('  · 其他文件 ' + (counts.docs || 0) + ' 个（PDF/Word/Excel/PPT/压缩包等）');
     L.push('  · answers.json —— 原始答案，可用于重新生成表格或导入选型工具');
     L.push('');
     L.push('说明：');

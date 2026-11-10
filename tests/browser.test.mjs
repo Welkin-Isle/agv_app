@@ -846,8 +846,11 @@ const mediaZones = await p18.cdp.evaluate(`(function(){
     bodyText: document.body.innerText
   };
 })()`, false);
-check('附件只剩 2 个上传区', mediaZones.fileInputs === 2, String(mediaZones.fileInputs));
-check('已删除「平面图 / CAD 图纸」上传区', mediaZones.hasCad === false,
+check('附件共有 3 个上传区', mediaZones.fileInputs === 3, String(mediaZones.fileInputs));
+check('第三区是「其他文件」，不再有单独的「平面图/CAD 图纸」区',
+  (mediaZones.titles || []).length === 3 &&
+  (mediaZones.titles || []).some(function(t){ return t.indexOf('其他文件') >= 0; }) &&
+  !(mediaZones.titles || []).some(function(t){ return t.indexOf('平面图') >= 0; }),
   JSON.stringify(mediaZones.titles));
 
 const p22 = await newTab(SITE + '/project.html?id=' + encodeURIComponent(pid));
@@ -866,6 +869,56 @@ check('工作台已无「快速记录」按钮', workbench.hasQuickBtn === false
 check('工作台底部只剩「导出」', (workbench.footBtns || []).join(',') === 'btn-export',
   JSON.stringify(workbench.footBtns));
 p22.ws.close();
+
+/* 6k 其他文件（PDF/Word/Excel 等）可上传，并进入导出的「其他文件/」目录 */
+await waitReady(p18.cdp, "document.querySelectorAll('input[type=file]').length >= 3");
+const docxFlow = await p18.cdp.evaluate(`(async function(){
+  var inputs = [].slice.call(document.querySelectorAll('input[type=file]'));
+  var docsInput = inputs.filter(function(i){ return (i.accept || '').indexOf('.docx') >= 0; })[0];
+  if (!docsInput) return { err: 'no-docs-input', accepts: inputs.map(function(i){ return i.accept; }) };
+
+  var fake = new File([new Uint8Array(3072)], '方案说明.docx',
+    { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  var dt = new DataTransfer(); dt.items.add(fake);
+  docsInput.files = dt.files;
+  docsInput.dispatchEvent(new Event('change'));
+  await new Promise(function(r){ setTimeout(r, 1500); });
+
+  var thumbs = [].slice.call(document.querySelectorAll('.att'));
+  var docThumb = thumbs.filter(function(t){ return t.textContent.indexOf('DOCX') >= 0; })[0];
+  if (!docThumb) return { err: 'no-doc-thumb', n: thumbs.length };
+  docThumb.click();
+  await new Promise(function(r){ setTimeout(r, 400); });
+  var mask = document.getElementById('overlay');
+  var dl = mask ? mask.querySelector('.ov-file a[download]') : null;
+  var hasDownload = !!dl;
+  if (mask) mask.remove();
+  return { hasDownload: hasDownload, accept: docsInput.accept };
+})()`);
+check('「其他文件」区可上传 docx',
+  !docxFlow.err && docxFlow.accept.indexOf('.pdf') >= 0 && docxFlow.accept.indexOf('.xlsx') >= 0,
+  docxFlow.err || docxFlow.accept);
+check('docx 预览提供「下载/打开文件」', docxFlow.hasDownload === true);
+
+const p23 = await newTab(SITE + '/project.html?id=' + encodeURIComponent(pid));
+await ready(p23);
+const docExport = await p23.cdp.evaluate(`(async function(){
+  var p = await AGV_DB.getProject(${JSON.stringify('__PID__')});
+  var media = await AGV_DB.listMedia(p.id);
+  var res = await AGV_EXPORT.build({ project: p, answers: p.answers || {}, media: media, includeVideos: true });
+  var ab = await res.files[0].blob.arrayBuffer();
+  var z = AGV_ZIP.readZip(ab);
+  var names = z.entries.map(function(e){ return e.name; });
+  // 从 zip 里取回那个 docx，核对字节一致
+  var de = z.entries.filter(function(e){ return e.name.indexOf('\u5176\u4ed6\u6587\u4ef6/') === 0; })[0];
+  var bytes = 0;
+  if (de) { var b = await z.inflate(de); bytes = b.length; }
+  return { names: names, docs: names.filter(function(n){ return n.indexOf('\u5176\u4ed6\u6587\u4ef6/') === 0; }), bytes: bytes };
+})()`.replace('__PID__', pid));
+check('导出包内有「其他文件/」目录',
+  (docExport.docs || []).length > 0, JSON.stringify(docExport.docs || docExport.names));
+check('导出的 docx 字节数与上传一致（3072）', docExport.bytes === 3072, String(docExport.bytes));
+p23.ws.close();
 
 [p13, p14, p15, p16, p17, p18].forEach(function (x) { try { x.ws.close(); } catch (e) {} });
 
