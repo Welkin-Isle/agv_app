@@ -579,14 +579,42 @@ check('预览里有「修改备注」和「删除」', (mediaFlow.btns || []).jo
 const sizeField = await p6.cdp.evaluate(`(function(){ ${HELPERS}
   var f = fieldByLabel('\u5c3a\u5bf8');
   if (!f) return { err: 'no-field' };
+  var inp = f.querySelector('input');
+  var typed = '';
+  var inputType = '';
+  if (inp) {
+    inputType = inp.type;
+    inp.value = '600\u00d7400\u00d7300';
+    inp.dispatchEvent(new Event('input'));
+    typed = inp.value;
+  }
   return {
     hasModes: !!f.querySelector('.modes'),
-    hint: (f.querySelector('.fhint') || {}).textContent || ''
+    hint: (f.querySelector('.fhint') || {}).textContent || '',
+    inputType: inputType,
+    typed: typed
   };
 })()`, false);
 check('物料尺寸已无「范围」选项', sizeField.hasModes === false, JSON.stringify(sizeField));
 check('尺寸处有「请下滑添加」提示',
   (sizeField.hint || '').indexOf('下滑添加') >= 0, String(sizeField.hint));
+check('尺寸输入框是文本类型（不是数字）', sizeField.inputType === 'text', String(sizeField.inputType));
+check('尺寸能输入「600×400×300」这类写法',
+  sizeField.typed === '600×400×300', JSON.stringify(sizeField.typed));
+
+/* 旧数据兼容：以前存的是 {m:'single',v:600}，不能显示成 [object Object] */
+const legacyRender = await p6.cdp.evaluate(`(function(){
+  var f = AGV_CTRL.renderField({ key: 'x', label: '\u65e7\u5c3a\u5bf8', type: 'text' },
+    { m: 'single', v: 600 }, function(){}, {});
+  var inp = f.querySelector('input');
+  var g = AGV_CTRL.renderField({ key: 'y', label: '\u65e7\u91cd\u91cf', type: 'text' },
+    { m: 'range', a: 11, b: 13 }, function(){}, {});
+  var inp2 = g.querySelector('input');
+  return { single: inp.value, range: inp2.value };
+})()`, false);
+check('旧格式尺寸（{m:single,v:600}）显示为「600」而不是 [object Object]',
+  legacyRender.single === '600', JSON.stringify(legacyRender.single));
+check('旧格式范围值显示为「11 ~ 13」', legacyRender.range === '11 ~ 13', JSON.stringify(legacyRender.range));
 
 /* 5i 温度只有范围；坡度/承重只有 ≤ */
 const p11 = await newTab(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=site');

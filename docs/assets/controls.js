@@ -24,6 +24,28 @@
 
   var MODE_LABEL = { single: '精确值', range: '范围', ge: '大于等于', le: '小于等于', unknown: '不确定' };
 
+  /**
+   * 把任意历史格式的值转成字符串。
+   * 例：字段从 number 改成 text 后，旧数据可能是 {m:'single', v:600}，
+   * 直接 String() 会显示成 "[object Object]"。
+   */
+  function textVal(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'object') {
+      if (typeof v.m === 'string') {
+        if (v.m === 'range') return [v.a, v.b].filter(isNum).join(' ~ ');
+        if (v.m === 'unknown') return '不确定';
+        return isNum(v.v) ? String(v.v) : '';
+      }
+      if (v.place !== undefined) {
+        return [v.place ? String(v.place) : '', isNum(v.n) ? (v.n + ' 层') : ''].filter(Boolean).join(' · ');
+      }
+      if (Array.isArray(v)) return v.join('、');
+      return '';
+    }
+    return String(v);
+  }
+
   /* ============================ 数值控件 ============================ */
   function numBody(field, v, soft) {
     var body = document.createElement('div');
@@ -221,7 +243,7 @@
       if (field.type === 'textarea') {
         var ta = document.createElement('textarea');
         ta.placeholder = field.placeholder || '';
-        ta.value = cur || '';
+        ta.value = textVal(cur);
         ta.addEventListener('input', function () { soft(ta.value); });
         box.appendChild(ta);
 
@@ -236,7 +258,7 @@
 
       } else if (field.type === 'select') {
         var sel = document.createElement('select');
-        var s = cur == null ? '' : String(cur);
+        var s = textVal(cur);
 
         // 需要弹说明框的选项：'其它（请说明）' + 字段自定义的（如"定制载具"）
         var triggers = [];
@@ -319,7 +341,7 @@
         var inp = document.createElement('input');
         inp.type = 'text';
         inp.placeholder = field.placeholder || '';
-        inp.value = cur || '';
+        inp.value = textVal(cur);
         inp.addEventListener('input', function () { soft(inp.value); });
         box.appendChild(inp);
       }
@@ -336,5 +358,5 @@
     return box;
   }
 
-  g.AGV_CTRL = { renderField: renderField, numVal: numVal };
+  g.AGV_CTRL = { renderField: renderField, numVal: numVal, textVal: textVal };
 })(typeof window !== 'undefined' ? window : globalThis);

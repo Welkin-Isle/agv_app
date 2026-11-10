@@ -25,9 +25,10 @@
   var MATERIAL_FIELDS = [
     { key: 'pack_form', label: '包装形式', type: 'select', allowOther: true,
       options: ['袋装', '箱装', '定制包装', '无包装'] },
-    { key: 'pack_size', label: '尺寸', unit: 'mm', type: 'number', modes: ['single'],
+    // 尺寸用文本输入：可以写 "600×400×300"、"600*400*300" 或 "约 600x400"
+    { key: 'pack_size', label: '尺寸（mm）', type: 'text',
       placeholder: '长×宽×高，如 600×400×300',
-      hint: '如存在不同尺寸物料，请下滑添加' },
+      hint: '可写 600×400×300 或 600*400*300；如存在不同尺寸物料，请下滑添加' },
     { key: 'material_weight', label: '重量', unit: 'kg', type: 'number', modes: ['single', 'range'] },
     { key: 'info_record', label: '信息记录形式', type: 'multi',
       options: ['一维码', '二维码', '电子标签（RFID）', '无'] }

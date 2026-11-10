@@ -78,7 +78,7 @@ const pid = await seed.evaluate(`(async () => {
       site_address: '韩国 江原道 原州工厂', contact: '김민수', position: '物流自动化经理',
       contact_info: 'min@example.com', kickoff: '2027年3月', purchase_mode: '议标' },
     material_overview: { sku_count: {m:'single',v:12}, material_desc: '方形包装半成品，纸箱装，单箱约 12kg', material_attr: ['常规'] },
-    material: [ { pack_form:'箱装', pack_size:{m:'single',v:600}, material_weight:{m:'range',a:11,b:13}, info_record:['二维码'] } ],
+    material: [ { pack_form:'箱装', pack_size:'600×400×300', material_weight:{m:'range',a:11,b:13}, info_record:['二维码'] } ],
     carrier: [ { carrier_for_material:'A1', carrier_type:'货架存储型托盘', carrier_material:'塑料', carrier_weight:{m:'single',v:25} } ],
     combo: [ { ref_material:1, ref_carrier:1, stack_mode:'自动码盘', load_weight:{m:'range',a:1000,b:1200},
       pallet_length:{m:'single',v:1000}, pallet_width:{m:'single',v:1200},
@@ -116,6 +116,11 @@ const c3 = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=
 await sleep(2200);
 await shot(c3, 'shot-module.png');
 
+/* ---------- 4z. 物料信息（尺寸文本输入） ---------- */
+const c3m = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=material');
+await sleep(2000);
+await shot(c3m, 'shot-material.png');
+
 /* ---------- 4a. 基本信息（新顺序） ---------- */
 const c3a = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=basic');
 await sleep(2000);
@@ -141,7 +146,7 @@ const c5 = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=
 await sleep(2200);
 await shot(c5, 'shot-media.png');
 
-[c1, c2, c3, c3a, c3b, c3c, c4, c5, seed].forEach(c => { try { c.ws.close(); } catch (e) { } });
+[c1, c2, c3, c3m, c3a, c3b, c3c, c4, c5, seed].forEach(c => { try { c.ws.close(); } catch (e) { } });
 try { proc.kill(); } catch (e) { }
 await sleep(700);
 try { fs.rmSync(prof, { recursive: true, force: true }); } catch (e) { }

@@ -52,9 +52,9 @@ const answers = {
     material_attr: ['常规']
   },
   material: [
-    { pack_form: '箱装', pack_size: { m: 'single', v: 600 }, material_weight: { m: 'range', a: 11, b: 13 }, info_record: ['二维码'] },
+    { pack_form: '箱装', pack_size: '600×400×300', material_weight: { m: 'range', a: 11, b: 13 }, info_record: ['二维码'] },
     { pack_form: '箱装', pack_size: { m: 'single', v: 500 }, material_weight: { m: 'single', v: 10 }, info_record: ['二维码'] },
-    { pack_form: '袋装', pack_size: { m: 'single', v: 400 }, material_weight: { m: 'single', v: 8 }, info_record: ['无'] }
+    { pack_form: '袋装', pack_size: '400*300*250', material_weight: { m: 'single', v: 8 }, info_record: ['无'] }
   ],
   carrier: [
     { carrier_for_material: 'A1、A2', carrier_type: '货架存储型托盘', carrier_material: '塑料', carrier_weight: { m: 'single', v: 25 }, carrier_info_record: ['二维码'] },
@@ -216,7 +216,8 @@ eq('basic.purchase_mode', '议标');
 eq('overview.sku_count', '12');
 eq('overview.attr', '常规');
 eq('mat1.pack_form', '箱装');
-eq('mat1.pack_size', '600');
+eq('mat1.pack_size', '600×400×300');
+eq('mat2.pack_size', '500');   // 旧数据（数字对象）仍能正确导出
 eq('mat1.weight', '11 ~ 13');
 eq('mat2.pack_form', '箱装');
 eq('carrier1.type', '货架存储型托盘');

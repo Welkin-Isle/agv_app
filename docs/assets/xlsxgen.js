@@ -69,6 +69,11 @@
 
   /** 返回 {text, num}；num 非 null 时用数字型写入 */
   function fmtAnswer(field, val) {
+    // 兼容：字段从 number 改成 text 后，旧数据仍是 {m:'single', v:600}
+    if (val && typeof val === 'object' && typeof val.m === 'string' &&
+        !(field && (field.type === 'number' || field.type === 'place_layers'))) {
+      val = (val.m === 'range') ? [val.a, val.b].filter(isNum).join(' ~ ') : val.v;
+    }
     if (val === null || val === undefined) return null;
     if (Array.isArray(val)) {
       var s = val.filter(Boolean).join('、');

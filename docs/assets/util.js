@@ -53,6 +53,11 @@
 
   /* 任意字段答案 → 人类可读 */
   function fmtAnswer(field, val) {
+    // 兼容：字段从 number 改成 text 后，旧数据仍是 {m:'single', v:600}
+    if (val && typeof val === 'object' && typeof val.m === 'string' &&
+        !(field && (field.type === 'number' || field.type === 'place_layers'))) {
+      val = (val.m === 'range') ? fmtNumber(val, '') : val.v;
+    }
     if (val === null || val === undefined) return '';
     if (Array.isArray(val)) return val.join('、');
     if (field) {
