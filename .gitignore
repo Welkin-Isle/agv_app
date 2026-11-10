@@ -29,3 +29,7 @@ __pycache__/
 
 # 说明：tests/shot-*.png 是界面截图，作为文档保留，不忽略。
 # 说明：public/template/template.xlsx（4.9MB）必须进仓库，否则 App 生成不了调研表。
+
+# PDF 构建临时产物
+tests/_pdf_preview.png
+tests/_pdf_build/
