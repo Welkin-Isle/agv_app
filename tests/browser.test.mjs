@@ -575,74 +575,67 @@ check('预览图片真的加载出来', mediaFlow.loaded === true);
 check('预览里有「修改备注」和「删除」', (mediaFlow.btns || []).join(',').indexOf('修改备注') >= 0 &&
   (mediaFlow.btns || []).join(',').indexOf('删除') >= 0, (mediaFlow.btns || []).join(','));
 
-/* 5h 物料尺寸只有精确值 + 提示语 */
-const sizeField = await p6.cdp.evaluate(`(function(){ ${HELPERS}
+/* 5h 尺寸：三个数字框（长×宽×高）+「其它写法」切换 */
+const sizeUI = await p6.cdp.evaluate(`(function(){ ${HELPERS}
   var f = fieldByLabel('\u5c3a\u5bf8');
   if (!f) return { err: 'no-field' };
-  var inp = f.querySelector('input');
-  var typed = '';
-  var inputType = '';
-  if (inp) {
-    inputType = inp.type;
-    inp.value = '600\u00d7400\u00d7300';
-    inp.dispatchEvent(new Event('input'));
-    typed = inp.value;
+  var nums = f.querySelectorAll('.dim-row input[type=number]');
+  if (nums.length === 3) {
+    [600, 400, 300].forEach(function (v, i) {
+      nums[i].value = v;
+      nums[i].dispatchEvent(new Event('input'));
+    });
   }
+  var sw = f.querySelector('.dim-switch');
   return {
-    hasModes: !!f.querySelector('.modes'),
+    numCount: nums.length,
+    inputTypes: [].slice.call(nums).map(function (x) { return x.type; }),
+    timesCount: f.querySelectorAll('.dim-row .times').length,
+    hasSwitch: !!sw,
+    switchText: sw ? sw.textContent : '',
     hint: (f.querySelector('.fhint') || {}).textContent || '',
-    inputType: inputType,
-    typed: typed
+    hasModes: !!f.querySelector('.modes')
   };
 })()`, false);
-check('物料尺寸已无「范围」选项', sizeField.hasModes === false, JSON.stringify(sizeField));
-check('尺寸处有「请下滑添加」提示',
-  (sizeField.hint || '').indexOf('下滑添加') >= 0, String(sizeField.hint));
-check('尺寸输入框是文本类型（不是数字）', sizeField.inputType === 'text', String(sizeField.inputType));
-check('尺寸能输入「600×400×300」这类写法',
-  sizeField.typed === '600×400×300', JSON.stringify(sizeField.typed));
+check('尺寸是三个数字框', sizeUI.numCount === 3 && sizeUI.inputTypes.join(',') === 'number,number,number',
+  JSON.stringify(sizeUI.numCount));
+check('三个框之间是两个 ×', sizeUI.timesCount === 2, String(sizeUI.timesCount));
+check('尺寸不再有「精确值/范围」切换', sizeUI.hasModes === false);
+check('尺寸提供「其它写法」入口', sizeUI.hasSwitch === true, String(sizeUI.switchText));
 
-/* 尺寸软提醒：只写一个数字时出现黄色提示，但不会清空输入、不阻止保存 */
-const sizeWarn = await p6.cdp.evaluate(`(function(){ ${HELPERS}
+const sizeSwap = await p6.cdp.evaluate(`(function(){ ${HELPERS}
   var f = fieldByLabel('\u5c3a\u5bf8');
-  if (!f) return { err: 'no-field' };
-  var inp = f.querySelector('input');
-
-  // 1) 只写一个数字
-  inp.value = '600';
-  inp.dispatchEvent(new Event('input'));
-  var w1 = f.querySelector('.fwarn');
-  var s1 = w1 ? getComputedStyle(w1).display : 'none';
-  var msg1 = w1 ? w1.textContent : '';   // 必须此刻取，后面会被清空
-  var kept1 = inp.value;
-
-  // 2) 写全三维
-  inp.value = '600\u00d7400\u00d7300';
-  inp.dispatchEvent(new Event('input'));
-  var w2 = f.querySelector('.fwarn');
-  var s2 = w2 ? getComputedStyle(w2).display : 'none';
-
-  // 3) 用 * 分隔也算合法
-  inp.value = '600*400*300';
-  inp.dispatchEvent(new Event('input'));
-  var w3 = f.querySelector('.fwarn');
-  var s3 = w3 ? getComputedStyle(w3).display : 'none';
-
-  return {
-    warnShown: s1 !== 'none',
-    msg: msg1,
-    valueKept: kept1,
-    hiddenWhenFull: s2 === 'none',
-    hiddenWhenStar: s3 === 'none'
-  };
+  f.querySelector('.dim-switch').click();                  // → 其它写法
+  var f2 = fieldByLabel('\u5c3a\u5bf8');
+  var single = f2.querySelector('.dim-row.single input');
+  var asText = single ? single.value : '';
+  f2.querySelector('.dim-switch').click();                 // → 切回尺寸框
+  var f3 = fieldByLabel('\u5c3a\u5bf8');
+  var back = [].slice.call(f3.querySelectorAll('.dim-row input[type=number]')).map(function (x) { return x.value; });
+  return { asText: asText, back: back };
 })()`, false);
-check('尺寸只写一个数字时出现软提醒', sizeWarn.warnShown === true, JSON.stringify(sizeWarn));
-check('提醒文案说明写法且注明不影响保存',
-  (sizeWarn.msg || '').indexOf('长×宽×高') >= 0 && (sizeWarn.msg || '').indexOf('不影响保存') >= 0,
-  String(sizeWarn.msg));
-check('提醒不阻止输入（值仍在）', sizeWarn.valueKept === '600', JSON.stringify(sizeWarn.valueKept));
-check('写全三维后提醒消失', sizeWarn.hiddenWhenFull === true);
-check('用 * 分隔也算合法，提醒消失', sizeWarn.hiddenWhenStar === true);
+check('切到「其它写法」时自动带上当前尺寸',
+  sizeSwap.asText === '600×400×300', JSON.stringify(sizeSwap.asText));
+check('切回尺寸框后三个数字还在',
+  (sizeSwap.back || []).join(',') === '600,400,300', JSON.stringify(sizeSwap.back));
+
+/* 旧数据三种形态都要能正确回显 */
+const legacyDim = await p6.cdp.evaluate(`(function(){
+  function mk(v){ return AGV_CTRL.renderField({ key: 'x', label: '\u5c3a\u5bf8', type: 'dim3' }, v, function(){}, {}); }
+  var a = mk('600\u00d7400\u00d7300');
+  var an = [].slice.call(a.querySelectorAll('input')).map(function (i) { return i.value; });
+  var b = mk('\u6309\u56fe\u7eb8');
+  var bt = b.querySelector('.dim-row.single input');
+  var c = mk({ m: 'single', v: 500 });
+  var cn = [].slice.call(c.querySelectorAll('input')).map(function (i) { return i.value; });
+  return { fromString: an, textMode: bt ? bt.value : '', fromOldNum: cn };
+})()`, false);
+check('旧字符串「600×400×300」自动拆进三个框',
+  (legacyDim.fromString || []).slice(0, 3).join(',') === '600,400,300', JSON.stringify(legacyDim.fromString));
+check('旧文字「按图纸」自动落到自由写法',
+  legacyDim.textMode === '按图纸', JSON.stringify(legacyDim.textMode));
+check('旧的数字对象 {m:single,v:500} 填进第一格',
+  (legacyDim.fromOldNum || [])[0] === '500', JSON.stringify(legacyDim.fromOldNum));
 
 /* 旧数据兼容：以前存的是 {m:'single',v:600}，不能显示成 [object Object] */
 const legacyRender = await p6.cdp.evaluate(`(function(){

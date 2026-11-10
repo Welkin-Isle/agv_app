@@ -52,6 +52,22 @@
   }
 
   /* 任意字段答案 → 人类可读 */
+
+  /** 三维尺寸（{L,W,H} 或 {text}）拼成导出字符串 */
+  function joinDim(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'string') return v.trim();
+    if (typeof v === 'number') return String(v);
+    if (typeof v !== 'object') return String(v);
+    if ('text' in v) return String(v.text == null ? '' : v.text).trim();
+    if (typeof v.m === 'string') {
+      if (v.m === 'range') return [v.a, v.b].filter(isNum).join(' ~ ');
+      if (v.m === 'unknown') return '不确定';
+      return isNum(v.v) ? String(v.v) : '';
+    }
+    return [v.L, v.W, v.H].filter(isNum).map(String).join('×');
+  }
+
   function fmtAnswer(field, val) {
     // 兼容：字段从 number 改成 text 后，旧数据仍是 {m:'single', v:600}
     if (val && typeof val === 'object' && typeof val.m === 'string' &&
@@ -59,6 +75,7 @@
       val = (val.m === 'range') ? fmtNumber(val, '') : val.v;
     }
     if (val === null || val === undefined) return '';
+    if (field && field.type === 'dim3') return joinDim(val);
     if (Array.isArray(val)) return val.join('、');
     if (field) {
       if (field.type === 'place_layers') {

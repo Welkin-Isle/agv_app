@@ -26,10 +26,8 @@
     { key: 'pack_form', label: '包装形式', type: 'select', allowOther: true,
       options: ['袋装', '箱装', '定制包装', '无包装'] },
     // 尺寸用文本输入：可以写 "600×400×300"、"600*400*300" 或 "约 600x400"
-    { key: 'pack_size', label: '尺寸（mm）', type: 'text',
-      placeholder: '长×宽×高，如 600×400×300',
-      hint: '可写 600×400×300 或 600*400*300；如存在不同尺寸物料，请下滑添加',
-      warn: { test: /[×xX*]/, msg: '看起来只写了一个数字，建议写全「长×宽×高」，如 600×400×300（不影响保存）' } },
+    { key: 'pack_size', label: '尺寸（mm）', type: 'dim3',
+      hint: '按长×宽×高填三个数字；不是规整三维的（如"按图纸"）点「其它写法」自由输入' },
     { key: 'material_weight', label: '重量', unit: 'kg', type: 'number', modes: ['single', 'range'] },
     { key: 'info_record', label: '信息记录形式', type: 'multi',
       options: ['一维码', '二维码', '电子标签（RFID）', '无'] }

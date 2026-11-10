@@ -172,6 +172,120 @@
     return wrap;
   }
 
+  /* ============================ 三维尺寸（长×宽×高） ============================ */
+  /**
+   * 值模型：
+   *   { L: 600, W: 400, H: 300 }   三个数字框
+   *   { text: '按图纸' }            自由写法
+   * 兼容旧数据：'600×400×300' 字符串、{m:'single',v:600} 数字对象
+   */
+  function dimVal(v) {
+    if (v === null || v === undefined || v === '') return { L: null, W: null, H: null };
+    if (typeof v === 'string') {
+      var nums = v.match(/\d+(?:\.\d+)?/g);
+      if (/[×*xX]/.test(v) && nums && nums.length >= 2) {
+        return { L: +nums[0], W: +nums[1], H: nums[2] ? +nums[2] : null };
+      }
+      return { text: v };
+    }
+    if (typeof v === 'object') {
+      if ('text' in v) return { text: String(v.text == null ? '' : v.text) };
+      if (typeof v.m === 'string') {
+        if (v.m === 'range') return { text: [v.a, v.b].filter(isNum).join(' ~ ') };
+        if (v.m === 'unknown') return { text: '不确定' };
+        return isNum(v.v) ? { L: +v.v, W: null, H: null } : { L: null, W: null, H: null };
+      }
+      return {
+        L: isNum(v.L) ? +v.L : null,
+        W: isNum(v.W) ? +v.W : null,
+        H: isNum(v.H) ? +v.H : null
+      };
+    }
+    return { L: null, W: null, H: null };
+  }
+
+  /** 把 {L,W,H} 或 {text} 拼成导出用的字符串 */
+  function dimStr(v) {
+    if (!v || typeof v !== 'object') return '';
+    if ('text' in v) return String(v.text == null ? '' : v.text);
+    return [v.L, v.W, v.H].filter(isNum).map(String).join('×');
+  }
+
+  function dim3Control(field, v, soft, struct) {
+    var wrap = document.createElement('div');
+    wrap.className = 'dim3';
+
+    /* ---- 自由写法模式 ---- */
+    if ('text' in v) {
+      var row1 = document.createElement('div');
+      row1.className = 'dim-row single';
+      var inp = document.createElement('input');
+      inp.type = 'text';
+      inp.placeholder = '如 约 600×400、按图纸、异形见照片';
+      inp.value = v.text || '';
+      inp.addEventListener('input', function () { soft({ text: inp.value }); });
+      row1.appendChild(inp);
+      wrap.appendChild(row1);
+
+      var sw1 = document.createElement('button');
+      sw1.type = 'button';
+      sw1.className = 'dim-switch';
+      sw1.textContent = '改用尺寸框';
+      sw1.onclick = function () {
+        var s = inp.value || '';
+        var nums = s.match(/\d+(?:\.\d+)?/g);
+        if (nums && nums.length >= 2) struct({ L: +nums[0], W: +nums[1], H: nums[2] ? +nums[2] : null });
+        else if (nums && nums.length === 1) struct({ L: +nums[0], W: null, H: null });
+        else struct({ text: s });   // 解析不出数字就留在自由写法
+      };
+      wrap.appendChild(sw1);
+      return wrap;
+    }
+
+    /* ---- 三个数字框模式 ---- */
+    var row = document.createElement('div');
+    row.className = 'dim-row';
+    var ins = [];
+    var keys = ['L', 'W', 'H'];
+    var phs = ['长', '宽', '高'];
+
+    function numAt(i) {
+      var s = ins[i].value;
+      if (s === '') return null;
+      var x = Number(s);
+      return isNaN(x) ? null : x;
+    }
+    function emit() { soft({ L: numAt(0), W: numAt(1), H: numAt(2) }); }
+
+    keys.forEach(function (k, i) {
+      if (i > 0) {
+        var ts = document.createElement('span');
+        ts.className = 'times';
+        ts.textContent = '×';
+        row.appendChild(ts);
+      }
+      var el = document.createElement('input');
+      el.type = 'number';
+      el.inputMode = 'decimal';
+      el.placeholder = phs[i];
+      if (isNum(v[k])) el.value = v[k];
+      el.addEventListener('input', emit);
+      ins.push(el);
+      row.appendChild(el);
+    });
+    wrap.appendChild(row);
+
+    var sw2 = document.createElement('button');
+    sw2.type = 'button';
+    sw2.className = 'dim-switch';
+    sw2.textContent = '其它写法（约 / 按图纸…）';
+    sw2.onclick = function () {
+      struct({ text: dimStr({ L: numAt(0), W: numAt(1), H: numAt(2) }) });
+    };
+    wrap.appendChild(sw2);
+    return wrap;
+  }
+
   /* ============================ 地点 + 层数 ============================ */
   function placeLayersControl(field, value, soft, struct, ctx) {
     var v = (value && typeof value === 'object' && !Array.isArray(value)) ? value : {};
@@ -255,6 +369,9 @@
 
       } else if (field.type === 'place_layers') {
         box.appendChild(placeLayersControl(field, cur, soft, struct, ctx));
+
+      } else if (field.type === 'dim3') {
+        box.appendChild(dim3Control(field, dimVal(cur), soft, struct));
 
       } else if (field.type === 'select') {
         var sel = document.createElement('select');
@@ -367,7 +484,9 @@
         updateWarn(inp.value);
       }
 
-      if (field.hint) {
+      // dim3 的自由写法模式下，原提示（"点其它写法"）已不适用，改用 placeholder 引导
+      var hideHint = (field.type === 'dim3' && cur && typeof cur === 'object' && 'text' in cur);
+      if (field.hint && !hideHint) {
         var h = document.createElement('div');
         h.className = 'fhint';
         h.textContent = field.hint;
@@ -379,5 +498,8 @@
     return box;
   }
 
-  g.AGV_CTRL = { renderField: renderField, numVal: numVal, textVal: textVal };
+  g.AGV_CTRL = {
+    renderField: renderField, numVal: numVal, textVal: textVal,
+    dimVal: dimVal, dimStr: dimStr
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

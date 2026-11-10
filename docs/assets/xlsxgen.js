@@ -68,11 +68,31 @@
   }
 
   /** 返回 {text, num}；num 非 null 时用数字型写入 */
+
+  /** 三维尺寸（{L,W,H} 或 {text}）拼成导出字符串 */
+  function joinDim(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'string') return v.trim();
+    if (typeof v === 'number') return String(v);
+    if (typeof v !== 'object') return String(v);
+    if ('text' in v) return String(v.text == null ? '' : v.text).trim();
+    if (typeof v.m === 'string') {
+      if (v.m === 'range') return [v.a, v.b].filter(isNum).join(' ~ ');
+      if (v.m === 'unknown') return '不确定';
+      return isNum(v.v) ? String(v.v) : '';
+    }
+    return [v.L, v.W, v.H].filter(isNum).map(String).join('×');
+  }
+
   function fmtAnswer(field, val) {
     // 兼容：字段从 number 改成 text 后，旧数据仍是 {m:'single', v:600}
     if (val && typeof val === 'object' && typeof val.m === 'string' &&
         !(field && (field.type === 'number' || field.type === 'place_layers'))) {
       val = (val.m === 'range') ? [val.a, val.b].filter(isNum).join(' ~ ') : val.v;
+    }
+    if (field && field.type === 'dim3') {
+      var dj = joinDim(val);
+      return dj ? { text: dj } : null;
     }
     if (val === null || val === undefined) return null;
     if (Array.isArray(val)) {

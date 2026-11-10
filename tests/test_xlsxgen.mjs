@@ -52,9 +52,9 @@ const answers = {
     material_attr: ['常规']
   },
   material: [
-    { pack_form: '箱装', pack_size: '600×400×300', material_weight: { m: 'range', a: 11, b: 13 }, info_record: ['二维码'] },
+    { pack_form: '箱装', pack_size: { L: 600, W: 400, H: 300 }, material_weight: { m: 'range', a: 11, b: 13 }, info_record: ['二维码'] },
     { pack_form: '箱装', pack_size: { m: 'single', v: 500 }, material_weight: { m: 'single', v: 10 }, info_record: ['二维码'] },
-    { pack_form: '袋装', pack_size: '400*300*250', material_weight: { m: 'single', v: 8 }, info_record: ['无'] }
+    { pack_form: '袋装', pack_size: { text: '按图纸' }, material_weight: { m: 'single', v: 8 }, info_record: ['无'] }
   ],
   carrier: [
     { carrier_for_material: 'A1、A2', carrier_type: '货架存储型托盘', carrier_material: '塑料', carrier_weight: { m: 'single', v: 25 }, carrier_info_record: ['二维码'] },
@@ -256,7 +256,7 @@ const extText = R.ext.map(x => (x[1] || '') + '=' + (x[2] || '')).join(' | ');
 console.log('     R84 起共 ' + R.ext.length + ' 行');
 ['物料 A3', '载具 B2', '组合 C3', '现场实际通道宽度', '运行环境', '其他需求', '三向堆垛式',
    '地点清单', 'D1', '原料库', '≥ 2000',
-   '堆叠层数', '3 层', '2 层', '流程路线', '中间点1【F1】',
+   '堆叠层数', '3 层', '2 层', '流程路线', '中间点1【F1】', '按图纸',
    '室内、冷库']
   .forEach(k => check('扩展区含「' + k + '」', extText.includes(k)));
 

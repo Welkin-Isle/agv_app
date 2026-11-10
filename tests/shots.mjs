@@ -78,7 +78,7 @@ const pid = await seed.evaluate(`(async () => {
       site_address: '韩国 江原道 原州工厂', contact: '김민수', position: '物流自动化经理',
       contact_info: 'min@example.com', kickoff: '2027年3月', purchase_mode: '议标' },
     material_overview: { sku_count: {m:'single',v:12}, material_desc: '方形包装半成品，纸箱装，单箱约 12kg', material_attr: ['常规'] },
-    material: [ { pack_form:'箱装', pack_size:'600×400×300', material_weight:{m:'range',a:11,b:13}, info_record:['二维码'] } ],
+    material: [ { pack_form:'箱装', pack_size:{ L:600, W:400, H:300 }, material_weight:{m:'range',a:11,b:13}, info_record:['二维码'] } ],
     carrier: [ { carrier_for_material:'A1', carrier_type:'货架存储型托盘', carrier_material:'塑料', carrier_weight:{m:'single',v:25} } ],
     combo: [ { ref_material:1, ref_carrier:1, stack_mode:'自动码盘', load_weight:{m:'range',a:1000,b:1200},
       pallet_length:{m:'single',v:1000}, pallet_width:{m:'single',v:1200},
@@ -128,13 +128,12 @@ await c3m.evaluate(`(function(){
     return l && l.textContent.indexOf('\u5c3a\u5bf8') === 0;
   })[0];
   if (!f) return false;
-  var i = f.querySelector('input');
-  i.value = '600';
-  i.dispatchEvent(new Event('input'));
+  var sw = f.querySelector('.dim-switch');   // 切到「其它写法」
+  if (sw) sw.click();
   return true;
 })()`);
 await sleep(500);
-await shot(c3m, 'shot-material-warn.png');
+await shot(c3m, 'shot-material-text.png');
 
 /* ---------- 4a. 基本信息（新顺序） ---------- */
 const c3a = await open(SITE + '/module.html?id=' + encodeURIComponent(pid) + '&m=basic');
