@@ -164,19 +164,28 @@ probe = {
   "sys.erp": (76,6), "sys.trigger_mode": (80,6),
   "process": (65,3),
 }
+# 超量区块会真插行：3个物料(+4行)、2个载具(+6)、3个组合(+12)，其后的行整体下移
+def S(r):
+    return r + (4 if r > 22 else 0) + (6 if r > 29 else 0) + (12 if r > 54 else 0)
 for k,(r,c) in probe.items():
+    v = ws.cell(row=S(r), column=c).value
+    res["cells"][k] = None if v is None else str(v)[:60]
+# 新增的第 3 组物料 / 第 2 个载具 / 第 3 个组合：现在就在对应位置，不需要 S()
+for k,(r,c) in {"mat3.pack_form":(23,6), "mat3.pack_size":(24,6),
+                "carrier2.type":(35,6), "combo3.stack":(65,6),
+                "flow1.newpos":(77,6)}.items():
     v = ws.cell(row=r, column=c).value
     res["cells"][k] = None if v is None else str(v)[:60]
 # 数值字段必须是数字类型（不能是字符串），否则 Excel 算不了、选型脚本可能读不到
 res["types"] = {}
 for k,(r,c) in {"num.sku":(12,6), "num.pallet_L":(33,6), "num.fork_hole_h":(42,6),
                 "num.height":(67,6), "num.driver":(74,6), "num.flow_rate":(59,6)}.items():
-    v = ws.cell(row=r, column=c).value
+    v = ws.cell(row=S(r), column=c).value
     res["types"][k] = type(v).__name__
 # 真正未填的字段应为空
 for k,(r,c) in {"empty.carrier_fork":(26,6), "empty.combo2_cargo_len":(46,6),
                 "empty.combo2_L1":(47,6), "empty.combo2_cargo_w":(51,6)}.items():
-    v = ws.cell(row=r, column=c).value
+    v = ws.cell(row=S(r), column=c).value
     res["cells"][k] = None if v is None else str(v)[:40]
 # 扩展区：R84 起
 for r in range(84, ws.max_row + 1):
@@ -197,7 +206,8 @@ try {
 const R = JSON.parse(pyOut.trim().split('\n').filter(l => l.startsWith('{')).pop());
 
 check('工作表 3 个', R.sheets.length === 3, R.sheets.join(','));
-check('合并单元格与模板一致', R.merges === R.tpl_merges, R.merges + ' / 模板 ' + R.tpl_merges);
+check('合并单元格 = 模板 41 + 新增 3 组块内合并',
+  R.merges === R.tpl_merges + 3, R.merges + ' / 模板 ' + R.tpl_merges + ' + 3');
 check('主表图片与模板一致', R.imgs_main === R.tpl_imgs_main, R.imgs_main + ' / 模板 ' + R.tpl_imgs_main);
 check('勘查图图片与模板一致', R.imgs_site === R.tpl_imgs_site, R.imgs_site + ' / 模板 ' + R.tpl_imgs_site);
 
@@ -220,6 +230,10 @@ eq('mat1.pack_size', '600×400×300');
 eq('mat2.pack_size', '500');   // 旧数据（数字对象）仍能正确导出
 eq('mat1.weight', '11 ~ 13');
 eq('mat2.pack_form', '箱装');
+eq('mat3.pack_form', '袋装');          // 第 3 组物料已就地插入（原表只有 A1/A2）
+eq('mat3.pack_size', '按图纸');
+eq('carrier2.type', '料箱');          // 第 2 个载具已就地插入（原表只有 B1）
+eq('combo3.stack', '人工码盘');          // 第 3 个组合已就地插入
 eq('carrier1.type', '货架存储型托盘');
 eq('combo1.stack', '自动码盘');
 eq('combo1.load', '1000 ~ 1200');
@@ -251,12 +265,12 @@ Object.entries(R.types).forEach(([k, t]) => {
   check(k + ' 为数值型', t === 'int' || t === 'float' || t === 'int64' || t === 'long', '实际类型 ' + t);
 });
 
-console.log('\n— 5) 扩展区（超出原表容量的部分 + 选型补充 + 其他需求） —');
+console.log('\n— 5) 扩展区（仅原表没有的栏位：选型补充 / 地点 / 路线 / 其他需求） —');
 const extText = R.ext.map(x => (x[1] || '') + '=' + (x[2] || '')).join(' | ');
-console.log('     R84 起共 ' + R.ext.length + ' 行');
-['物料 A3', '载具 B2', '组合 C3', '现场实际通道宽度', '运行环境', '其他需求', '三向堆垛式',
+console.log('     表格末尾共 ' + R.ext.length + ' 行');
+['现场实际通道宽度', '运行环境', '其他需求', '三向堆垛式',
    '地点清单', 'D1', '原料库', '≥ 2000',
-   '堆叠层数', '3 层', '2 层', '流程路线', '中间点1【F1】', '按图纸',
+   '堆叠层数', '3 层', '2 层', '流程路线', '中间点1【F1】',
    '室内、冷库']
   .forEach(k => check('扩展区含「' + k + '」', extText.includes(k)));
 

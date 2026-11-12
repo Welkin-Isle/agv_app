@@ -205,6 +205,153 @@
       });
   }
 
+
+  /* ============================================================================
+   * 真插行：把超量区块插到「对应位置」，而不是堆到表格最后
+   * ----------------------------------------------------------------------------
+   * 做法：把原表最后那一组区块的 <row> 整行复制一份（样式、行高、合并单元格
+   * 全部跟着走），插在该区块末尾，然后：
+   *   · 所有行号 / 单元格行号 按累计偏移重编
+   *   · 合并单元格：跨过插入点的范围自动延长；复制来的块内合并同步平移
+   *   · 图片锚点（drawing1.xml 的 xdr:row）跟着平移
+   *   · dimension 扩大
+   * ========================================================================== */
+
+  // 每种区块在原表里的最后一行的行号（插入点）
+  var BLOCK_END = { material: 22, carrier: 29, combo: 54, flow: 64 };
+
+  function planInserts(answers) {
+    var plan = [];
+    Object.keys(REPEAT).forEach(function (rid) {
+      var def = REPEAT[rid];
+      var n = Array.isArray(answers[rid]) ? answers[rid].length : 0;
+      var extra = Math.max(0, n - def.capacity);
+      if (!extra) return;
+      var after = BLOCK_END[rid];
+      plan.push({
+        rid: rid,
+        after: after,
+        stride: def.stride,
+        count: extra * def.stride,
+        srcStart: after - def.stride + 1,
+        srcEnd: after
+      });
+    });
+    plan.sort(function (a, b) { return a.after - b.after; });
+    return plan;
+  }
+
+  function shiftFactory(plan) {
+    return function (row) {
+      var d = 0;
+      for (var i = 0; i < plan.length; i++) if (plan[i].after < row) d += plan[i].count;
+      return row + d;
+    };
+  }
+
+  function splitRows(xml) {
+    var re = /<row[^>]*\br="(\d+)"[^>]*(?:\/>|>[\s\S]*?<\/row>)/g, m, list = [];
+    while ((m = re.exec(xml)) !== null) list.push({ num: parseInt(m[1], 10), xml: m[0] });
+    return list;
+  }
+
+  function renumRow(rowXml, newNum) {
+    var s1 = rowXml.replace(/^(<row\b[^>]*?\br=")\d+(")/, '$1' + newNum + '$2');
+    return s1.replace(/(<c\b[^>]*?\br=")([A-Z]+)\d+(")/g, function (_, a, col, b) {
+      return a + col + newNum + b;
+    });
+  }
+
+  function expandSheet(xml, plan) {
+    if (!plan.length) {
+      var max0 = 0;
+      (xml.match(/<row[^>]*\br="(\d+)"/g) || []).forEach(function (t) {
+        var m = /r="(\d+)"/.exec(t); if (m) max0 = Math.max(max0, parseInt(m[1], 10));
+      });
+      return { xml: xml, shift: function (r) { return r; }, maxRow: max0 };
+    }
+    var shift = shiftFactory(plan);
+    var rows = splitRows(xml);
+    var byAfter = {};
+    plan.forEach(function (p) { byAfter[p.after] = p; });
+
+    var outRows = [], maxNew = 0;
+    rows.forEach(function (r) {
+      var n = shift(r.num);
+      outRows.push(renumRow(r.xml, n));
+      if (n > maxNew) maxNew = n;
+      var p = byAfter[r.num];
+      if (p) {
+        var start = n + 1, k = 0;
+        rows.forEach(function (sr) {
+          if (sr.num >= p.srcStart && sr.num <= p.srcEnd) {
+            outRows.push(renumRow(sr.xml, start + k));
+            if (start + k > maxNew) maxNew = start + k;
+            k++;
+          }
+        });
+      }
+    });
+
+    // 合并单元格：原始合并按 shift 平移/延长；复制块内的合并同步复制
+    var mergeRe = /<mergeCell ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/g, mm, merges = [];
+    while ((mm = mergeRe.exec(xml)) !== null) {
+      merges.push({ c1: mm[1], r1: +mm[2], c2: mm[3], r2: +mm[4] });
+    }
+    var next = merges.map(function (g) {
+      return { c1: g.c1, r1: shift(g.r1), c2: g.c2, r2: shift(g.r2) };
+    });
+    plan.forEach(function (p) {
+      var start = shift(p.after) + 1;
+      merges.forEach(function (g) {
+        if (g.r1 >= p.srcStart && g.r2 <= p.srcEnd) {
+          next.push({
+            c1: g.c1, r1: start + (g.r1 - p.srcStart),
+            c2: g.c2, r2: start + (g.r2 - p.srcStart)
+          });
+        }
+      });
+    });
+    var seen = {}, finalM = [];
+    next.forEach(function (g) {
+      var k = g.c1 + g.r1 + ':' + g.c2 + g.r2;
+      if (!seen[k]) { seen[k] = 1; finalM.push(g); }
+    });
+    finalM.sort(function (a, b) { return a.r1 - b.r1 || colIndex(a.c1) - colIndex(b.c1); });
+    var mergeXml = '<mergeCells count="' + finalM.length + '">' +
+      finalM.map(function (g) { return '<mergeCell ref="' + g.c1 + g.r1 + ':' + g.c2 + g.r2 + '"/>'; }).join('') +
+      '</mergeCells>';
+
+    var out = xml
+      .replace(/<sheetData>[\s\S]*<\/sheetData>/, '<sheetData>' + outRows.join('') + '</sheetData>')
+      .replace(/<mergeCells[\s\S]*?<\/mergeCells>/, mergeXml)
+      .replace(/<dimension ref="([A-Z]+)(\d+):([A-Z]+)\d+"\/>/,
+        '<dimension ref="$1$2:$3' + maxNew + '"/>');
+
+    return { xml: out, shift: shift, maxRow: maxNew };
+  }
+
+  // 图片锚点用的是 0 基行号，转成 1 基再平移
+  function shiftDrawing(drXml, shift) {
+    return drXml.replace(/<xdr:row>(\d+)<\/xdr:row>/g, function (_, n) {
+      return '<xdr:row>' + (shift(parseInt(n, 10) + 1) - 1) + '</xdr:row>';
+    });
+  }
+
+  function blockLabel(rid, def, idx, item) {
+    var n = idx + 1;
+    if (rid === 'material') return '物料A' + n;
+    if (rid === 'carrier') return '载具B' + n;
+    if (rid === 'flow') return '流程D' + n;
+    if (rid === 'combo') {
+      var a = item.ref_material ? 'A' + item.ref_material : '';
+      var b = item.ref_carrier ? 'B' + item.ref_carrier : '';
+      var ref = a && b ? a + '+' + b : (a || b);
+      return 'C' + n + (ref ? '(' + ref + ')' : '');
+    }
+    return def.label + n;
+  }
+
   /* ---------------- 主流程 ---------------- */
   /**
    * @param {ArrayBuffer} templateBuf 空白调研表
@@ -230,18 +377,24 @@
       }
     });
 
+    // ① 先把超量区块真正插进表格对应位置（复制上一块的行，样式/行高/合并都跟随）
+    var plan = planInserts(answers);
+    var ex = expandSheet(xml, plan);
+    xml = ex.xml;
+    var shift = ex.shift;
+
     var existingRows = {};
     (xml.match(/<row[^>]*r="(\d+)"/g) || []).forEach(function (t) {
       var m = /r="(\d+)"/.exec(t); if (m) existingRows[m[1]] = 1;
     });
 
-    var overflow = [];          // 超出原表容量的内容 → 扩展区
-    var maxRow = 83;
+    var maxRow = ex.maxRow || 83;
 
     function put(row, col, payload) {
       if (!payload) return;
+      if (row > maxRow) maxRow = row;
       if (existingRows[row]) xml = setCellInExistingRow(xml, row, col, payload);
-      else xml = appendRow(xml, row, [cellXml(colName(col) + row, payload)]);
+      else { xml = appendRow(xml, row, [cellXml(colName(col) + row, payload)]); existingRows[row] = 1; }
     }
 
     /* ① 固定分组 */
@@ -250,46 +403,37 @@
       Object.keys(FIXED[gid]).forEach(function (key) {
         var cell = FIXED[gid][key];
         var p = fmtAnswer(fieldDef[gid + '.' + key], store[key]);
-        if (p) put(cell[0], cell[1], p);
+        if (p) put(shift(cell[0]), cell[1], p);
       });
     });
 
     /* ② 工艺流程（合并单元格，写左上角；追加在原提示之后，不覆盖） */
     var proc = (answers.process || {}).process_text;
     if (proc && String(proc).trim()) {
-      maxRow = Math.max(maxRow, PROCESS_CELL[0]);
-      xml = appendIntoMergedCell(xml, PROCESS_CELL[0], PROCESS_CELL[1], String(proc).trim());
+      var procRow = shift(PROCESS_CELL[0]);
+      maxRow = Math.max(maxRow, procRow);
+      xml = appendIntoMergedCell(xml, procRow, PROCESS_CELL[1], String(proc).trim());
     }
 
-    /* ③ 重复区块：前 N 组进原表预留位，其余进扩展区 */
+    /* ③ 重复区块：全部就地写入（超量部分已在①插好行） */
     Object.keys(REPEAT).forEach(function (rid) {
       var def = REPEAT[rid];
       var arr = Array.isArray(answers[rid]) ? answers[rid] : [];
+      var blockBase = shift(def.base);
       arr.forEach(function (item, idx) {
-        if (idx < def.capacity) {
-          var base = def.base + idx * def.stride;
-          Object.keys(def.cols).forEach(function (key) {
-            var p = fmtAnswer(fieldDef[rid + '.' + key], item[key]);
-            if (p) put(base + def.cols[key], 6, p);
-          });
-        } else {
-          overflow.push({ rid: rid, label: def.label, idx: idx, item: item, def: def });
-        }
+        var base = blockBase + idx * def.stride;
+        Object.keys(def.cols).forEach(function (key) {
+          var p = fmtAnswer(fieldDef[rid + '.' + key], item[key]);
+          if (p) put(base + def.cols[key], 6, p);
+        });
+        // 复制来的块带着上一组的标题，改成自己的
+        if (idx >= def.capacity) put(base, 3, { text: blockLabel(rid, def, idx, item) });
       });
     });
 
     /* ④ 扩展区：超容量组合 + 选型补充 + 其他需求 */
     var ext = [];
-    if (overflow.length) {
-      ext.push({ head: '【扩展区】以下内容超出原表预留位置（原表仅预留 A1/A2、B1、C1/C2、D1/D2）' });
-      overflow.forEach(function (o) {
-        ext.push({ head: o.label + ' ' + o.def.prefix + (o.idx + 1) + '（第 ' + (o.idx + 1) + ' 组）' });
-        Object.keys(o.def.cols).forEach(function (key) {
-          var p = fmtAnswer(fieldDef[o.rid + '.' + key], o.item[key]);
-          if (p) ext.push({ label: o.label + ' ' + o.def.prefix + (o.idx + 1) + ' · ' + labelOf(schema, o.rid, key), payload: p });
-        });
-      });
-    }
+    /* 超量表项已在①就地插入，这里只放原表没有的栏位 */
     var extraStore = answers.extra || {};
     Object.keys(EXTRA_LABELS).forEach(function (k) {
       var p = fmtAnswer(fieldDef['extra.' + k], extraStore[k]);
@@ -344,7 +488,7 @@
       ext.push({ label: '其他需求（指定车型、特殊条件等）', payload: { text: String(other).trim() } });
     }
 
-    var row = 84;
+    var row = shift(84);
     ext.forEach(function (e) {
       var cells = [];
       if (e.head) {
@@ -360,10 +504,16 @@
 
     if (maxRow > 83) xml = bumpDimension(xml, maxRow);
 
-    var out = g.AGV_ZIP.repackZip(templateBuf, (function () {
-      var m = {}; m[SHEET] = new TextEncoder().encode(xml); return m;
-    })());
-    return out;
+    var repl = {};
+    repl[SHEET] = new TextEncoder().encode(xml);
+    if (plan.length) {
+      var dr = z.find('xl/drawings/drawing1.xml');
+      if (dr) {
+        var drXml = new TextDecoder('utf-8').decode(await z.inflate(dr));
+        repl['xl/drawings/drawing1.xml'] = new TextEncoder().encode(shiftDrawing(drXml, shift));
+      }
+    }
+    return g.AGV_ZIP.repackZip(templateBuf, repl);
   }
 
   function letter(i) {
