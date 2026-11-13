@@ -319,6 +319,23 @@
         });
       }
     });
+    // 大区级合并（A/B 列的「1 负载信息」「2 物流信息」、G 列提示区）要跟着区块延长，
+    // 否则新插入的 B3/C4 左侧没有竖线、也没有大类标签。
+    var carrierEnd = shift(29) + (plan[0] && plan[0].rid === 'carrier' ? 0 : 0);
+    // 各段真实结束行：已插行的段尾 = shift(段尾) + 该段插入量
+    var CARRIER_END = shift(29) + (plan.filter(function (p) { return p.rid === 'carrier'; })[0] || { count: 0 }).count;
+    var COMBO_END   = shift(54) + (plan.filter(function (p) { return p.rid === 'combo'; })[0] || { count: 0 }).count;
+    var FLOW_END    = shift(64) + (plan.filter(function (p) { return p.rid === 'flow'; })[0] || { count: 0 }).count;
+    var RECLOSE = {
+      'A11:A42': COMBO_END, 'B11:B42': COMBO_END, 'G30:G42': COMBO_END,
+      'A55:A64': FLOW_END,  'B55:B64': FLOW_END,  'G55:G64': FLOW_END,
+      'G11:G29': CARRIER_END
+    };
+    next.forEach(function (g) {
+      var key = g.c1 + g.r1 + ':' + g.c2 + g.r2;
+      if (RECLOSE[key] && g.r2 < RECLOSE[key]) g.r2 = RECLOSE[key];
+    });
+
     var seen = {}, finalM = [];
     next.forEach(function (g) {
       var k = g.c1 + g.r1 + ':' + g.c2 + g.r2;
@@ -348,7 +365,7 @@
   var DROP_SHEETS = ['现场勘查图'];
 
   function patchWorkbook(wbXml) {
-    var out = wbXml;
+    var out = wbXml.replace(/name="表1-项目基本情况"/g, 'name="项目基本情况"');
     DROP_SHEETS.forEach(function (name) {
       var re = new RegExp('<sheet\\b[^>]*name="' + name + '"[^>]*/>');
       out = out.replace(re, '');
@@ -443,10 +460,24 @@
 
     /* ② 工艺流程（合并单元格，写左上角；追加在原提示之后，不覆盖） */
     var proc = (answers.process || {}).process_text;
-    if (proc && String(proc).trim()) {
-      var procRow = shift(PROCESS_CELL[0]);
+    var procRow = shift(PROCESS_CELL[0]);
+    var procText = [];
+    if (proc && String(proc).trim()) procText.push(String(proc).trim());
+    // 流程路线（含中间点）并入同一格，格式与工艺流程描述一致
+    var flowArr = Array.isArray(answers.flow) ? answers.flow : [];
+    flowArr.forEach(function (f, i) {
+      if (!f) return;
+      var parts = [];
+      if (f.route_start) parts.push('起始点【' + codeOf(f.route_start) + '】');
+      (Array.isArray(f.vias) ? f.vias : []).forEach(function (v, j) {
+        if (v) parts.push('中间点' + (j + 1) + '【' + codeOf(v) + '】');
+      });
+      if (f.route_end) parts.push('终点【' + codeOf(f.route_end) + '】');
+      if (parts.length) procText.push('流程D' + (i + 1) + '：' + parts.join(' → '));
+    });
+    if (procText.length) {
       maxRow = Math.max(maxRow, procRow);
-      xml = appendIntoMergedCell(xml, procRow, PROCESS_CELL[1], String(proc).trim());
+      xml = appendIntoMergedCell(xml, procRow, PROCESS_CELL[1], procText.join('\n'));
     }
 
     /* ③ 重复区块：全部就地写入（超量部分已在①插好行） */
@@ -478,13 +509,7 @@
     var placeOk = places.filter(function (p) {
       return (p && (str(p.code) || str(p.name)));
     });
-    if (placeOk.length) {
-      ext.push({ head: '【地点清单】（物流流程起终点引用）' });
-      placeOk.forEach(function (p) {
-        var code = str(p.code).trim(), nm = str(p.name).trim();
-        ext.push({ label: code || '(无代号)', payload: { text: nm || '' } });
-      });
-    }
+    // 地点清单不再单独列在表格末尾（流程里已体现起终点）
     // 堆叠层数（可能是多个地点）
     var stacking = Array.isArray(answers.stacking) ? answers.stacking : [];
     var stOk = stacking.filter(function (x) {
@@ -513,10 +538,7 @@
       if (f.route_end) parts.push('终点【' + codeOf(f.route_end) + '】');
       if (parts.length) routes.push({ label: '流程 D' + (i + 1) + ' 路线', text: parts.join(' → ') });
     });
-    if (routes.length) {
-      ext.push({ head: '【流程路线】（含中间点）' });
-      routes.forEach(function (r) { ext.push({ label: r.label, payload: { text: r.text } }); });
-    }
+    // 流程路线已在「工艺流程」单元格里拼接，这里不再单列尾段
     var other = (answers.other || {}).other_requirements;
     if (other && String(other).trim()) {
       ext.push({ label: '其他需求（指定车型、特殊条件等）', payload: { text: String(other).trim() } });

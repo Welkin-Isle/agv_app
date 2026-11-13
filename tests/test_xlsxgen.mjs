@@ -133,8 +133,8 @@ import openpyxl, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 wb = openpyxl.load_workbook(r"${OUT.replace(/\\/g, '\\\\')}")
 tplwb = openpyxl.load_workbook(r"${TEMPLATE.replace(/\\/g, '\\\\')}")
-tplws = tplwb["表1-项目基本情况"]
-ws = wb["表1-项目基本情况"]
+tplws = tplwb[tplwb.sheetnames[0]]
+ws = wb[wb.sheetnames[0]]
 res = {
   "tpl_merges": len(tplws.merged_cells.ranges),
   "tpl_imgs_main": len(getattr(tplws, "_images", [])),
@@ -207,7 +207,7 @@ const R = JSON.parse(pyOut.trim().split('\n').filter(l => l.startsWith('{')).pop
 
 check('工作表保留 表1 + 现场勘查情况（已删现场勘查图）',
   R.sheets.length === 2 &&
-  R.sheets[0].indexOf('表1') === 0 &&
+  R.sheets[0].indexOf('项目基本情况') >= 0 &&
   R.sheets.indexOf('现场勘查情况') >= 0 &&
   R.sheets.indexOf('现场勘查图') < 0, R.sheets.join(','));
 check('合并单元格 = 模板 41 + 新增 3 组块内合并',
@@ -257,6 +257,7 @@ eq('work.driver', '6');
 eq('sys.erp', 'MES和ERP');
 eq('sys.trigger_mode', '系统联机自动运行');
 eq('process', '原料入库');
+eq('process', '起始点【D1】');      // 流程路线已并入工艺流程单元格
 
 console.log('\n— 4) 未填字段应保持空白 —');
 check('未填的进叉方向为空', C['empty.carrier_fork'] === null, JSON.stringify(C['empty.carrier_fork']));
@@ -273,9 +274,7 @@ console.log('\n— 5) 扩展区（仅原表没有的栏位：选型补充 / 地�
 const extText = R.ext.map(x => (x[1] || '') + '=' + (x[2] || '')).join(' | ');
 console.log('     表格末尾共 ' + R.ext.length + ' 行');
 ['现场实际通道宽度', '运行环境', '其他需求', '三向堆垛式',
-   '地点清单', 'D1', '原料库', '≥ 2000',
-   '堆叠层数', '3 层', '2 层', '流程路线', '中间点1【F1】',
-   '室内、冷库']
+   '≥ 2000', '堆叠层数', '3 层', '2 层', '室内、冷库']
   .forEach(k => check('扩展区含「' + k + '」', extText.includes(k)));
 
 console.log('\n' + '='.repeat(72));

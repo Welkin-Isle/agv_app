@@ -213,6 +213,7 @@
    */
   function slopeSensor() {
     var handler = null, lastCall = 0, buf = [], cb = null;
+    var zero = null;          // 校准零点（未校准时为 null）
 
     function onOrient(e) {
       var beta = e.beta;
@@ -221,7 +222,9 @@
       if (now - lastCall < 120) return;
       lastCall = now;
       // 手机竖着贴在坡面上时，前后倾角 ≈ 坡度；取绝对值
-      buf.push(Math.abs(beta));
+      // 第一帧就是零点：之后读数 = |当前 - 零点|
+      if (zero === null) zero = beta;
+      buf.push(Math.abs(beta - zero));
       if (buf.length > 6) buf.shift();
       var avg = buf.reduce(function (a, b) { return a + b; }, 0) / buf.length;
       if (cb) cb(Math.round(avg * 10) / 10);
@@ -230,14 +233,14 @@
     return {
       supported: ('DeviceOrientationEvent' in g),
       start: function (onVal) {
-        cb = onVal; buf = [];
+        cb = onVal; buf = []; zero = null;
         if (!('DeviceOrientationEvent' in g)) return false;
         g.addEventListener('deviceorientation', onOrient, true);
         handler = onOrient;
         return true;
       },
-      /** 以当前读数为零点（地面本身有坡度时先校准） */
-      calibrate: function () { buf = []; },
+      /** 以当前读数为零点（在平地上点一下，之后就是相对坡度） */
+      calibrate: function () { buf = []; zero = null; },
       stop: function () {
         if (handler) g.removeEventListener('deviceorientation', handler, true);
         handler = null; cb = null;
