@@ -1,5 +1,5 @@
-﻿{
-  "version": "1.0.0",
-  "notes": "首个正式版本：现场调研表单、附件上传、导出调研表",
+{
+  "version": "1.0.8",
+  "notes": "超量区块就地插入、6 其他需求分区、相机/返回键/倾角仪/检查更新/反馈、崩溃日志",
   "url": "https://github.com/Welkin-Isle/agv_app_native/releases"
 }
