@@ -143,7 +143,7 @@ res = {
   "dims": [ws.max_row, ws.max_column],
   "merges": len(ws.merged_cells.ranges),
   "imgs_main": len(getattr(ws, "_images", [])),
-  "imgs_site": len(getattr(wb["现场勘查图"], "_images", [])),
+  "imgs_site": (len(getattr(wb["现场勘查图"], "_images", [])) if "现场勘查图" in wb.sheetnames else 0),
   "cells": {}, "ext": []
 }
 probe = {
@@ -205,7 +205,7 @@ try {
 }
 const R = JSON.parse(pyOut.trim().split('\n').filter(l => l.startsWith('{')).pop());
 
-check('工作表 3 个', R.sheets.length === 3, R.sheets.join(','));
+check('只剩 1 个工作表（已删除现场勘查情况/图）', R.sheets.length === 1, R.sheets.join(','));
 check('合并单元格 = 模板 41 + 新增 3 组块内合并',
   R.merges === R.tpl_merges + 3, R.merges + ' / 模板 ' + R.tpl_merges + ' + 3');
 check('主表图片与模板一致', R.imgs_main === R.tpl_imgs_main, R.imgs_main + ' / 模板 ' + R.tpl_imgs_main);

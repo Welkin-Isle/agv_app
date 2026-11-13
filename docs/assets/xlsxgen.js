@@ -282,14 +282,18 @@
       if (n > maxNew) maxNew = n;
       var p = byAfter[r.num];
       if (p) {
+        // 可能一次要插多组（例如 2 个多余载具 = 12 行），必须按组循环克隆
+        var reps = Math.max(1, Math.round(p.count / p.stride));
         var start = n + 1, k = 0;
-        rows.forEach(function (sr) {
-          if (sr.num >= p.srcStart && sr.num <= p.srcEnd) {
-            outRows.push(renumRow(sr.xml, start + k));
-            if (start + k > maxNew) maxNew = start + k;
-            k++;
-          }
-        });
+        for (var rep = 0; rep < reps; rep++) {
+          rows.forEach(function (sr) {
+            if (sr.num >= p.srcStart && sr.num <= p.srcEnd) {
+              outRows.push(renumRow(sr.xml, start + k));
+              if (start + k > maxNew) maxNew = start + k;
+              k++;
+            }
+          });
+        }
       }
     });
 
@@ -302,15 +306,18 @@
       return { c1: g.c1, r1: shift(g.r1), c2: g.c2, r2: shift(g.r2) };
     });
     plan.forEach(function (p) {
-      var start = shift(p.after) + 1;
-      merges.forEach(function (g) {
-        if (g.r1 >= p.srcStart && g.r2 <= p.srcEnd) {
-          next.push({
-            c1: g.c1, r1: start + (g.r1 - p.srcStart),
-            c2: g.c2, r2: start + (g.r2 - p.srcStart)
-          });
-        }
-      });
+      var reps = Math.max(1, Math.round(p.count / p.stride));
+      for (var rep = 0; rep < reps; rep++) {
+        var base0 = shift(p.after) + 1 + rep * p.stride;
+        merges.forEach(function (g) {
+          if (g.r1 >= p.srcStart && g.r2 <= p.srcEnd) {
+            next.push({
+              c1: g.c1, r1: base0 + (g.r1 - p.srcStart),
+              c2: g.c2, r2: base0 + (g.r2 - p.srcStart)
+            });
+          }
+        });
+      }
     });
     var seen = {}, finalM = [];
     next.forEach(function (g) {
@@ -329,6 +336,32 @@
         '<dimension ref="$1$2:$3' + maxNew + '"/>');
 
     return { xml: out, shift: shift, maxRow: maxNew };
+  }
+
+  /**
+   * 只保留「表1-项目基本情况」：删掉「现场勘查情况」「现场勘查图」两个分表，
+   * 并让 Excel 打开时停在第一张表。
+   * 做法：从 workbook.xml 移除 <sheet> 条目（其余部件保留但不被引用，Excel 会忽略），
+   * 给 sheet1 的 sheetView 加 tabSelected，bookViews 的 activeTab 归零。
+   */
+  var DROP_SHEETS = ['现场勘查情况', '现场勘查图'];
+
+  function patchWorkbook(wbXml) {
+    var out = wbXml;
+    DROP_SHEETS.forEach(function (name) {
+      var re = new RegExp('<sheet\\b[^>]*name="' + name + '"[^>]*/>');
+      out = out.replace(re, '');
+    });
+    out = out.replace(/<workbookView([^>]*?)\\bactiveTab="\\d+"/, '<workbookView$1activeTab="0"');
+    if (out.indexOf('activeTab') < 0) {
+      out = out.replace(/<workbookView/, '<workbookView activeTab="0"');
+    }
+    return out;
+  }
+
+  function markActiveTab(sheetXml) {
+    if (/<sheetView[^>]*tabSelected/.test(sheetXml)) return sheetXml;
+    return sheetXml.replace(/<sheetView\\b/, '<sheetView tabSelected="1"');
   }
 
   // 图片锚点用的是 0 基行号，转成 1 基再平移
@@ -505,7 +538,12 @@
     if (maxRow > 83) xml = bumpDimension(xml, maxRow);
 
     var repl = {};
-    repl[SHEET] = new TextEncoder().encode(xml);
+    repl[SHEET] = new TextEncoder().encode(markActiveTab(xml));
+    var wbEntry = z.find('xl/workbook.xml');
+    if (wbEntry) {
+      var wbXml = new TextDecoder('utf-8').decode(await z.inflate(wbEntry));
+      repl['xl/workbook.xml'] = new TextEncoder().encode(patchWorkbook(wbXml));
+    }
     if (plan.length) {
       var dr = z.find('xl/drawings/drawing1.xml');
       if (dr) {

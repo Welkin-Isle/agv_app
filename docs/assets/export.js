@@ -89,7 +89,7 @@
     L.push('  · 物料载具照片 ' + (counts.material_photos || 0) + ' 个');
     L.push('  · 现场视频 ' + (counts.videos || 0) + ' 个');
     L.push('  · 其他文件 ' + (counts.docs || 0) + ' 个（PDF/Word/Excel/PPT/压缩包等）');
-    L.push('  · answers.json —— 原始答案，可用于重新生成表格或导入选型工具');
+    L.push('  · （未包含 answers.json：那是内部格式，客户用不上）');
     L.push('');
     L.push('说明：');
     L.push('  1. 表格中未能对应到原表预留位置的内容（如物料 A3、载具 B2、组合 C3 及以后，');
@@ -141,7 +141,7 @@
       entries.push({ name: dir + '/' + fname, data: m.blob });
     });
 
-    entries.push({ name: 'answers.json', data: JSON.stringify({
+    if (opt.includeAnswers) entries.push({ name: 'answers.json', data: JSON.stringify({
       _meta: {
         app: 'AGV 现场记录', version: '1.0',
         exportedAt: new Date().toISOString(),

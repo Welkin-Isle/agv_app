@@ -395,11 +395,11 @@ check('zip 含照片且带备注序号', expInfo.names.some(n => /^现场照片\
 check('zip 含视频（无备注时不加下划线）',
   expInfo.names.some(n => /^现场视频\/01(_[^\/]*)?\.mp4$/.test(n)),
   expInfo.names.filter(n => n.startsWith('现场视频')).join(''));
-check('zip 含 answers.json', expInfo.names.indexOf('answers.json') >= 0);
+check('zip 不含 answers.json（内部格式，不给客户看）', expInfo.names.indexOf('answers.json') < 0);
 check('zip 含 说明.txt', expInfo.names.indexOf('说明.txt') >= 0);
 check('内层 xlsx 结构完整（部件数 > 20）', expInfo.inner > 20, String(expInfo.inner) + ' 个部件');
 check('内层 xlsx 含填写内容', expInfo.innerHasText === true);
-check('answers.json 含项目数据', expInfo.ansOk === true);
+check('answers.json 已按默认排除', expInfo.ansOk !== true);
 check('加密后解密字节一致', expInfo.encSameBlob === true);
 check('错误口令被拒绝', expInfo.wrongPwRejected === true);
 check('分包模式产出 2 个包', expInfo.splitNames.length === 2, expInfo.splitNames.join(' + '));
