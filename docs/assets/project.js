@@ -290,6 +290,14 @@
     }
   })();
 
+  // 硬件返回键：工作台 → 回首页
+  if (window.AGV_NATIVE && window.AGV_NATIVE.isNative) {
+    window.AGV_NATIVE.installBackButton(function () {
+      location.href = 'index.html';
+      return true;
+    });
+  }
+
   // 从模块页返回时刷新
   window.addEventListener('pageshow', function (e) { if (e.persisted) reload(); });
 })();

@@ -178,6 +178,9 @@
       main.appendChild(card);
     });
 
+    // 现场信息：坡度可以用手机倾角仪实测
+    if (st.id === 'site') attachSlopeMeter(main, groupStore('site'));
+
     if (st.repeat) {
       var r = st.repeat;
       var host = document.createElement('div');
@@ -201,6 +204,68 @@
       redraw();
       main.appendChild(host);
       flowRedraw = redraw;
+    }
+  }
+
+  /* ---------------- 坡度计（倾角仪） ---------------- */
+  function attachSlopeMeter(main, store) {
+    var N = window.AGV_NATIVE;
+    if (!N) return;
+    var fields = main.querySelectorAll('.field');
+    var target = null;
+    for (var i = 0; i < fields.length; i++) {
+      var lb = fields[i].querySelector('.flabel');
+      if (lb && lb.textContent.indexOf('地面坡度') === 0) { target = fields[i]; break; }
+    }
+    if (!target) return;
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn small';
+    btn.style.marginTop = '8px';
+    btn.textContent = '📐 用倾角仪测坡度';
+    btn.onclick = function () { openSlopeMeter(store, function () { render(); }); };
+    target.appendChild(btn);
+  }
+
+  function openSlopeMeter(store, done) {
+    var N = window.AGV_NATIVE;
+    var body = document.createElement('div');
+    body.style.cssText = 'text-align:center;padding:8px 0';
+
+    var big = document.createElement('div');
+    big.style.cssText = 'font-size:44px;font-weight:700;color:#0050A3;line-height:1.2';
+    big.textContent = '--';
+    var unit = document.createElement('div');
+    unit.className = 'tiny';
+    unit.textContent = '°（把手机竖着贴在坡面上，或沿坡面平放）';
+    body.appendChild(big); body.appendChild(unit);
+
+    var tip = document.createElement('div');
+    tip.className = 'fhint';
+    tip.style.marginTop = '10px';
+    tip.textContent = '先点「校准」在平地上归零，再到坡面上读数；数值取最近 6 次采样的平均，会有一点跳动。';
+    body.appendChild(tip);
+
+    var sensor = N.slopeSensor();
+    var cur = null;
+
+    openOverlay('测量地面坡度', body, true, [
+      { text: '校准归零', fn: function () { sensor.calibrate(); N.toast('已归零'); } },
+      { text: '采用此值', primary: true, fn: function () {
+          if (cur === null) { N.toast('还没有读数'); return; }
+          store.slope = { m: 'le', v: Math.round(cur * 10) / 10 };
+          touch();
+          closeOverlay(); done();
+        } }
+    ], function () { sensor.stop(); });
+
+    if (!sensor.start(function (v) {
+      cur = v;
+      big.textContent = v.toFixed(1);
+    })) {
+      big.textContent = '不支持';
+      tip.textContent = '这台设备/浏览器不支持方向传感器。请手动填写坡度，或改用手机自带「水平仪」App 测量。';
     }
   }
 
@@ -473,15 +538,36 @@
     card.className = 'card';
     card.innerHTML = '<div class="group-title">' + esc(z.title) + '</div>' +
       '<div class="tiny" style="margin-bottom:9px">' + esc(z.desc) + '　·　最多 ' + z.max + ' 个</div>';
-    card.appendChild(filePicker('点击上传', z.accept, z.id, z.max));
+    card.appendChild(filePicker('点击上传', z.accept, z.id, z.max, /image\//.test(z.accept)));
     card.appendChild(mediaList(z.id));
     return card;
   }
 
-  function filePicker(label, accept, zone, max) {
+  function filePicker(label, accept, zone, max, isImage) {
     var drop = document.createElement('div');
     drop.className = 'drop';
     drop.innerHTML = '<div class="big">' + esc(label) + '</div>';
+    if (isImage) {
+      var cam = document.createElement('div');
+      cam.className = 'drop';
+      cam.style.marginTop = '8px';
+      cam.innerHTML = '<div class="big">📷 拍照</div>';
+      cam.onclick = async function () {
+        if (!window.AGV_NATIVE || !window.AGV_NATIVE.hasPlugin('Camera')) {
+          // 浏览器/未装插件：退回系统文件选择（手机上通常会弹相机）
+          if (typeof input !== 'undefined' && input) input.click();
+          return;
+        }
+        try {
+          var f = await window.AGV_NATIVE.pickPhoto(true);
+          if (f) await handleFiles(zone, [f], max);
+        } catch (e) { alert('拍照失败：' + e.message); }
+      };
+      var wrapCam = document.createElement('div');
+      wrapCam.appendChild(cam);
+      drop.parentNode; // 占位
+      drop._cam = wrapCam;
+    }
     var input = document.createElement('input');
     input.type = 'file';
     input.accept = accept;
@@ -495,6 +581,7 @@
     };
     var wrap = document.createElement('div');
     wrap.appendChild(drop);
+    if (drop._cam) wrap.appendChild(drop._cam);
     wrap.appendChild(input);
     return wrap;
   }
@@ -711,6 +798,15 @@
       $('main').innerHTML = '<div class="notice bad">加载失败：' + esc(e.message) + '</div>';
     }
   })();
+
+  // 硬件返回键：模块页 → 回工作台
+  if (window.AGV_NATIVE && window.AGV_NATIVE.isNative) {
+    window.AGV_NATIVE.installBackButton(function () {
+      save();
+      location.href = 'project.html?id=' + encodeURIComponent(pid);
+      return true;
+    });
+  }
 
   window.addEventListener('pagehide', function () { if (state.dirty) save(); });
   window.addEventListener('visibilitychange', function () {

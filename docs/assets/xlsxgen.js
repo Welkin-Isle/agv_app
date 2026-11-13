@@ -344,7 +344,8 @@
    * 做法：从 workbook.xml 移除 <sheet> 条目（其余部件保留但不被引用，Excel 会忽略），
    * 给 sheet1 的 sheetView 加 tabSelected，bookViews 的 activeTab 归零。
    */
-  var DROP_SHEETS = ['现场勘查情况', '现场勘查图'];
+  // 只删「现场勘查图」（照片已进附件）；「现场勘查情况」保留但会空着
+  var DROP_SHEETS = ['现场勘查图'];
 
   function patchWorkbook(wbXml) {
     var out = wbXml;

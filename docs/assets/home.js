@@ -162,6 +162,8 @@
       closeSheet();
       decryptFile();
     }));
+    body.appendChild(sheetItem('检查更新', '看看有没有新版本', function () { checkUpdateFlow(); }));
+    body.appendChild(sheetItem('反馈 / 联系我们', '发邮件反馈问题或建议', function () { feedbackFlow(); }));
     body.appendChild(sheetItem('环境自检', '检查这台手机能否正常导出调研表', function () {
       location.href = 'selftest.html';
     }));
@@ -179,6 +181,35 @@
   $('sheet-close').onclick = closeSheet;
   $('sheet').onclick = function (e) { if (e.target === $('sheet')) closeSheet(); };
   function closeSheet() { $('sheet').classList.add('hidden'); }
+
+  /* ---------------- 检查更新 ---------------- */
+  const FEEDBACK_MAIL = 'feedback@example.com';   // TODO: 换成实际邮箱
+  const VERSION_URL = 'https://welkin-isle.github.io/agv_app/version.json';
+
+  async function checkUpdateFlow() {
+    var N = window.AGV_NATIVE;
+    var info = N ? await N.appInfo() : { version: null, platform: 'web' };
+    var cur = info.version || '（网页版，无版本号）';
+    try {
+      var r = await N.checkUpdate(VERSION_URL);
+      if (r.hasUpdate) {
+        if (confirm('发现新版本 ' + r.latest + '（当前 ' + r.current + '）\n\n' + (r.notes || '') +
+          '\n\n是否打开下载页？')) { if (r.url) window.open(r.url, '_blank'); }
+      } else {
+        alert('已是最新版本\n\n当前：' + cur);
+      }
+    } catch (e) {
+      alert('检查更新失败：' + e.message + '\n\n当前版本：' + cur +
+        '\n（网页版没有版本号是正常的）');
+    }
+  }
+
+  /* ---------------- 反馈 ---------------- */
+  function feedbackFlow() {
+    var N = window.AGV_NATIVE;
+    var body = '请描述你遇到的问题或建议：\n\n1) 在哪个页面：\n2) 做了什么：\n3) 期望结果：\n4) 实际结果：\n\n';
+    if (N) N.sendFeedback(FEEDBACK_MAIL, 'AGV 现场记录 App 反馈', body);
+  }
 
   function sheetItem(title, desc, fn) {
     var b = document.createElement('button');
@@ -265,7 +296,13 @@
 
   /* ---------------- 启动 ---------------- */
   (async function boot() {
-    if ('serviceWorker' in navigator) {
+    // 硬件返回键：首页按返回 = 退出（交给系统）
+  if (window.AGV_NATIVE && window.AGV_NATIVE.isNative) {
+    window.AGV_NATIVE.installBackButton(function () { return false; });
+  }
+
+  // App 壳（Capacitor）里资源已本地打包，Service Worker 既没必要也可能报错
+    if ('serviceWorker' in navigator && !window.Capacitor) {
       navigator.serviceWorker.register('sw.js').catch(function () { /* 离线缓存失败不阻塞 */ });
     }
     try {
