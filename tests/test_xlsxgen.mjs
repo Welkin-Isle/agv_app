@@ -205,7 +205,11 @@ try {
 }
 const R = JSON.parse(pyOut.trim().split('\n').filter(l => l.startsWith('{')).pop());
 
-check('只剩 1 个工作表（已删除现场勘查情况/图）', R.sheets.length === 1, R.sheets.join(','));
+check('工作表保留 表1 + 现场勘查情况（已删现场勘查图）',
+  R.sheets.length === 2 &&
+  R.sheets[0].indexOf('表1') === 0 &&
+  R.sheets.indexOf('现场勘查情况') >= 0 &&
+  R.sheets.indexOf('现场勘查图') < 0, R.sheets.join(','));
 check('合并单元格 = 模板 41 + 新增 3 组块内合并',
   R.merges === R.tpl_merges + 3, R.merges + ' / 模板 ' + R.tpl_merges + ' + 3');
 check('主表图片与模板一致', R.imgs_main === R.tpl_imgs_main, R.imgs_main + ' / 模板 ' + R.tpl_imgs_main);

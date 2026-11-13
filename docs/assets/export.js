@@ -225,7 +225,11 @@
   }
 
   /* ---------------- 保存到设备 ---------------- */
-  function saveBlob(blob, filename) {
+  // 浏览器（PWA）：<a download>
+  function webSave(blob, filename) {
+    try {
+      if (g.AGV_DB && g.AGV_DB.setSetting) g.AGV_DB.setSetting('lastExportAt', new Date().toISOString());
+    } catch (e) { /* ignore */ }
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
@@ -233,6 +237,54 @@
     document.body.appendChild(a);
     a.click();
     setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
+  }
+
+  function blobToBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        var s = String(fr.result || '');
+        resolve(s.slice(s.indexOf(',') + 1));   // 去掉 data:...;base64,
+      };
+      fr.onerror = function () { reject(fr.error || new Error('读取文件失败')); };
+      fr.readAsDataURL(blob);
+    });
+  }
+
+  /**
+   * App 壳（Capacitor）里 WebView 的 <a download> 往往静默失败，
+   * 所以改为：写入缓存目录 → 唤起系统分享面板（存到"文件"/微信/网盘）。
+   * 浏览器环境仍走原来的下载。
+   */
+  function saveBlob(blob, filename) {
+    var cap = g.Capacitor;
+    var P = cap && cap.Plugins;
+    if (!P || !P.Filesystem || !P.Share) { webSave(blob, filename); return; }
+
+    if (blob.size > 80 * 1024 * 1024) {
+      alert('导出包超过 80 MB，App 内可能无法一次保存。\n请改用「分包导出」再试。');
+      return;
+    }
+
+    blobToBase64(blob).then(function (data) {
+      return P.Filesystem.writeFile({
+        path: 'AGV导出/' + filename, data: data, directory: 'DOCUMENTS', recursive: true
+      });
+    }).then(function (res) {
+      try {
+        if (g.AGV_DB && g.AGV_DB.setSetting) g.AGV_DB.setSetting('lastExportAt', new Date().toISOString());
+      } catch (e) { /* ignore */ }
+      alert('已保存到 App 的「AGV导出」文件夹：\n' + res.uri +
+        '\n\n找不到的话，点下一步「分享」，可另存到微信 / 网盘 / 手机文件夹。');
+      return P.Share.share({
+        title: filename,
+        url: res.uri,
+        dialogTitle: '另存到其它位置（可选）'
+      }).catch(function () { /* 用户取消分享 */ });
+    }).catch(function (e) {
+      console.warn('原生保存失败，回退到浏览器下载：', e);
+      webSave(blob, filename);
+    });
   }
 
   g.AGV_EXPORT = {

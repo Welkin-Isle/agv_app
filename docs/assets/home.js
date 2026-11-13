@@ -183,7 +183,7 @@
   function closeSheet() { $('sheet').classList.add('hidden'); }
 
   /* ---------------- 检查更新 ---------------- */
-  const FEEDBACK_MAIL = 'feedback@example.com';   // TODO: 换成实际邮箱
+  const FEEDBACK_MAIL = '2361677086@qq.com';
   const VERSION_URL = 'https://welkin-isle.github.io/agv_app/version.json';
 
   async function checkUpdateFlow() {
@@ -296,7 +296,25 @@
 
   /* ---------------- 启动 ---------------- */
   (async function boot() {
-    // 硬件返回键：首页按返回 = 退出（交给系统）
+    // 备份提醒：距上次导出 >3 天 → 今晚 20:00 提醒；>7 天 → 立刻提醒
+  (async function remindBackup() {
+    var N = window.AGV_NATIVE;
+    if (!N || !N.isNative || !N.remindAt) return;
+    try {
+      var last = await DB.getSetting('lastExportAt');
+      var days = last ? (Date.now() - new Date(last).getTime()) / 86400000 : 999;
+      if (days < 3) return;
+      var at = new Date();
+      if (days >= 7) at = new Date(Date.now() + 5000);
+      else { at.setHours(20, 0, 0, 0); if (at.getTime() <= Date.now()) at = new Date(Date.now() + 60000); }
+      var d = Math.floor(days);
+      await N.remindAt(at, '该导出备份了',
+        (d >= 999 ? '你还没有导出过方案' : '距上次导出已 ' + d + ' 天') +
+        '。数据只存在这台手机里，建议现在导出一次。');
+    } catch (e) { /* 提醒失败不影响使用 */ }
+  })();
+
+  // 硬件返回键：首页按返回 = 退出（交给系统）
   if (window.AGV_NATIVE && window.AGV_NATIVE.isNative) {
     window.AGV_NATIVE.installBackButton(function () { return false; });
   }
