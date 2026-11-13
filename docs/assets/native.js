@@ -147,6 +147,18 @@
     return out;
   }
 
+  /** 版本比较：1.0.10 > 1.0.7（按数字逐段比，不能直接比字符串） */
+  function compareVersion(a, b) {
+    var pa = String(a || '0').split(/[.\-+]/), pb = String(b || '0').split(/[.\-+]/);
+    var len = Math.max(pa.length, pb.length);
+    for (var i = 0; i < len; i++) {
+      var x = parseInt(pa[i] || '0', 10); if (isNaN(x)) x = 0;
+      var y = parseInt(pb[i] || '0', 10); if (isNaN(y)) y = 0;
+      if (x !== y) return x < y ? -1 : 1;
+    }
+    return 0;
+  }
+
   /**
    * 检查更新：读网页仓库里的 version.json（公开可访问），与当前版本比较。
    * @param {string} url   version.json 地址
@@ -161,7 +173,7 @@
       latest: info.version,
       url: info.url || '',
       notes: info.notes || '',
-      hasUpdate: String(info.version) !== String(cur.version || '1.0.0')
+      hasUpdate: compareVersion(info.version, cur.version || '1.0.0') > 0
     };
   }
 
@@ -248,6 +260,50 @@
     };
   }
 
+  /* ---------------- 8. 崩溃 / 错误日志（本地留存） ---------------- */
+  var LOG_KEY = 'agv_error_log';
+  var LOG_MAX = 50;
+
+  function readLog() {
+    try { return JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch (e) { return []; }
+  }
+  function writeLog(arr) {
+    try { localStorage.setItem(LOG_KEY, JSON.stringify(arr.slice(-LOG_MAX))); } catch (e) { /* 满了就算了 */ }
+  }
+  function addLog(kind, msg, stack) {
+    var arr = readLog();
+    arr.push({
+      t: new Date().toISOString(),
+      kind: kind,
+      msg: String(msg || '').slice(0, 500),
+      stack: String(stack || '').slice(0, 1500),
+      page: (location.hash || location.pathname || '').slice(0, 80),
+      ver: (g.AGV_APP_VERSION || '')
+    });
+    writeLog(arr);
+  }
+  function formatLog() {
+    var arr = readLog();
+    if (!arr.length) return '（没有记录到错误）';
+    return arr.map(function (e, i) {
+      return '#' + (i + 1) + ' ' + e.t + ' [' + e.kind + '] ' + e.page + '\n' + e.msg +
+        (e.stack ? '\n' + e.stack : '');
+    }).join('\n\n');
+  }
+
+  /** 安装全局错误捕获（幂等，页面加载时自动调用） */
+  function installErrorLogging() {
+    if (g.__agvErrInstalled) return;
+    g.__agvErrInstalled = true;
+    g.addEventListener('error', function (ev) {
+      if (ev && ev.message) addLog('error', ev.message, (ev.error && ev.error.stack) || (ev.filename + ':' + ev.lineno));
+    });
+    g.addEventListener('unhandledrejection', function (ev) {
+      var r = ev && ev.reason;
+      addLog('promise', (r && (r.message || r)) || 'unhandled rejection', (r && r.stack) || '');
+    });
+  }
+
   g.AGV_NATIVE = {
     isNative: isNative,
     hasPlugin: has,
@@ -262,6 +318,14 @@
     sendFeedback: sendFeedback,
     copyText: copyText,
     slopeSensor: slopeSensor,
-    deviceLine: deviceLine
+    deviceLine: deviceLine,
+    compareVersion: compareVersion,
+    installErrorLogging: installErrorLogging,
+    getErrorLog: readLog,
+    formatErrorLog: formatLog,
+    clearErrorLog: function () { writeLog([]); }
   };
+
+  // 页面一加载就装上捕获（越早越好）
+  installErrorLogging();
 })(typeof window !== 'undefined' ? window : globalThis);

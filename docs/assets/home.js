@@ -163,6 +163,7 @@
       decryptFile();
     }));
     body.appendChild(sheetItem('检查更新', '看看有没有新版本', function () { checkUpdateFlow(); }));
+    body.appendChild(sheetItem('崩溃日志', '查看 / 复制最近的错误记录，反馈时用', function () { errorLogFlow(); }));
     body.appendChild(sheetItem('反馈 / 联系我们', '发邮件反馈问题或建议', function () { feedbackFlow(); }));
     body.appendChild(sheetItem('环境自检', '检查这台手机能否正常导出调研表', function () {
       location.href = 'selftest.html';
@@ -202,6 +203,52 @@
       alert('检查更新失败：' + e.message + '\n\n当前版本：' + cur +
         '\n（网页版没有版本号是正常的）');
     }
+  }
+
+  /* ---------------- 崩溃日志 ---------------- */
+  function errorLogFlow() {
+    var N = window.AGV_NATIVE;
+    if (!N || !N.getErrorLog) { alert('日志功能不可用'); return; }
+    var list = N.getErrorLog();
+    var text = N.formatErrorLog();
+    var head = '共 ' + list.length + ' 条错误记录' + (list.length ? '' : '（一切正常）') +
+      '\n\n设备信息：' + N.deviceLine();
+    if (!list.length) { alert(head); return; }
+    // 复用首页已有的抽屉
+    var body = $('sheet-body');
+    body.innerHTML = '';
+    var headEl = document.createElement('div');
+    headEl.className = 'tiny';
+    headEl.style.marginBottom = '8px';
+    headEl.textContent = head;
+    body.appendChild(headEl);
+
+    var pre = document.createElement('pre');
+    pre.style.cssText = 'white-space:pre-wrap;font-size:11px;line-height:1.6;max-height:46vh;' +
+      'overflow:auto;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;' +
+      'padding:10px;margin:0 0 12px';
+    pre.textContent = text;
+    body.appendChild(pre);
+
+    var btnCopy = document.createElement('button');
+    btnCopy.className = 'btn primary';
+    btnCopy.style.width = '100%';
+    btnCopy.textContent = '复制全部日志';
+    btnCopy.onclick = function () { N.copyText(text); N.toast('已复制，可直接粘贴到邮件/微信'); };
+    body.appendChild(btnCopy);
+
+    var btnClear = document.createElement('button');
+    btnClear.className = 'btn ghost';
+    btnClear.style.cssText = 'width:100%;margin-top:8px';
+    btnClear.textContent = '清空记录';
+    btnClear.onclick = function () {
+      if (!confirm('清空所有错误记录？')) return;
+      N.clearErrorLog();
+      body.innerHTML = '<div class="tiny">已清空</div>';
+    };
+    body.appendChild(btnClear);
+
+    $('sheet').classList.remove('hidden');
   }
 
   /* ---------------- 反馈 ---------------- */
