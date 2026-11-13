@@ -430,6 +430,10 @@
 
     // ① 先把超量区块真正插进表格对应位置（复制上一块的行，样式/行高/合并都跟随）
     var plan = planInserts(answers);
+    // 新增「6 其他需求」分区：克隆「3 工艺流程」那一行（A=3 / B=工艺流程 / C:G 合并），
+    // 插在系统对接之后、调研人之前，格式与原表分区完全一致。
+    plan.push({ rid: 'section6', after: 81, stride: 1, count: 1, srcStart: 65, srcEnd: 65 });
+    plan.sort(function (a, b) { return a.after - b.after; });
     var ex = expandSheet(xml, plan);
     xml = ex.xml;
     var shift = ex.shift;
@@ -544,19 +548,26 @@
       ext.push({ label: '其他需求（指定车型、特殊条件等）', payload: { text: String(other).trim() } });
     }
 
-    var row = shift(84);
+    // 「6 其他需求」：与「3 工艺流程」同格式，一个合并单元格装多行内容
+    var secRow = shift(81) + 1;
+    var lines = [];
     ext.forEach(function (e) {
-      var cells = [];
-      if (e.head) {
-        cells.push(cellXml('C' + row, { text: e.head }));
-      } else {
-        cells.push(cellXml('C' + row, { text: e.label }));
-        cells.push(cellXml('F' + row, e.payload));
+      if (e.head) { lines.push(e.head); return; }
+      var v = '';
+      if (e.payload) {
+        if (e.payload.text !== undefined) v = e.payload.text;
+        else if (e.payload.num !== undefined) v = String(e.payload.num);
       }
-      xml = appendRow(xml, row, cells);
-      maxRow = row;
-      row++;
+      lines.push(v ? (e.label + '：' + v) : e.label);
     });
+    xml = setCellInExistingRow(xml, secRow, 1, { text: '6' });
+    xml = setCellInExistingRow(xml, secRow, 2, { text: '其他需求' });
+    xml = setCellInExistingRow(xml, secRow, 3, { text: lines.join('\n') });
+    xml = xml.replace(/<mergeCells count="(\d+)">/, function (_, c) {
+      return '<mergeCells count="' + (parseInt(c, 10) + 1) + '">' +
+        '<mergeCell ref="C' + secRow + ':G' + secRow + '"/>';
+    });
+    maxRow = Math.max(maxRow, secRow);
 
     if (maxRow > 83) xml = bumpDimension(xml, maxRow);
 

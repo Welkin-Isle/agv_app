@@ -170,6 +170,10 @@ def S(r):
 for k,(r,c) in probe.items():
     v = ws.cell(row=S(r), column=c).value
     res["cells"][k] = None if v is None else str(v)[:60]
+# 「6 其他需求」分区 = S(81)+1
+res["cells"]["sec6"] = ws.cell(row=S(81)+1, column=3).value
+res["cells"]["sec6_a"] = ws.cell(row=S(81)+1, column=1).value
+res["cells"]["sec6_b"] = ws.cell(row=S(81)+1, column=2).value
 # 新增的第 3 组物料 / 第 2 个载具 / 第 3 个组合：现在就在对应位置，不需要 S()
 for k,(r,c) in {"mat3.pack_form":(23,6), "mat3.pack_size":(24,6),
                 "carrier2.type":(35,6), "combo3.stack":(65,6),
@@ -210,8 +214,8 @@ check('工作表保留 表1 + 现场勘查情况（已删现场勘查图）',
   R.sheets[0].indexOf('项目基本情况') >= 0 &&
   R.sheets.indexOf('现场勘查情况') >= 0 &&
   R.sheets.indexOf('现场勘查图') < 0, R.sheets.join(','));
-check('合并单元格 = 模板 41 + 新增 3 组块内合并',
-  R.merges === R.tpl_merges + 3, R.merges + ' / 模板 ' + R.tpl_merges + ' + 3');
+check('合并单元格 = 模板 41 + 3 组块内合并 + 1 个 6其他需求 分区',
+  R.merges === R.tpl_merges + 4, R.merges + ' / 模板 ' + R.tpl_merges + ' + 4');
 check('主表图片与模板一致', R.imgs_main === R.tpl_imgs_main, R.imgs_main + ' / 模板 ' + R.tpl_imgs_main);
 check('勘查图图片与模板一致', R.imgs_site === R.tpl_imgs_site, R.imgs_site + ' / 模板 ' + R.tpl_imgs_site);
 
@@ -273,9 +277,12 @@ Object.entries(R.types).forEach(([k, t]) => {
 console.log('\n— 5) 扩展区（仅原表没有的栏位：选型补充 / 地点 / 路线 / 其他需求） —');
 const extText = R.ext.map(x => (x[1] || '') + '=' + (x[2] || '')).join(' | ');
 console.log('     表格末尾共 ' + R.ext.length + ' 行');
+const SEC6 = String(C['sec6'] || '');
+check('「6 其他需求」分区编号正确', String(C['sec6_a']) === '6', JSON.stringify(C['sec6_a']));
+check('「6 其他需求」分区标题正确', String(C['sec6_b']) === '其他需求', JSON.stringify(C['sec6_b']));
 ['现场实际通道宽度', '运行环境', '其他需求', '三向堆垛式',
    '≥ 2000', '堆叠层数', '3 层', '2 层', '室内、冷库']
-  .forEach(k => check('扩展区含「' + k + '」', extText.includes(k)));
+  .forEach(k => check('6其他需求 含「' + k + '」', SEC6.includes(k)));
 
 console.log('\n' + '='.repeat(72));
 console.log(`xlsx 生成器测试: 通过 ${pass}   失败 ${fail}`);
